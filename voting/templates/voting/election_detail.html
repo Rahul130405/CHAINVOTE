@@ -1,151 +1,318 @@
-{% extends 'voting/base.html' %}
-{% block title %}{{ election.title }} — ChainVote{% endblock %}
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voting Booth | {{ election.title }}</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        apple: {
+                            light: '#f5f5f7',
+                            dark: '#000000',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Inter:wght@400;500;600;700;800;900&display=swap');
+        
+        body { 
+            transition: background-color 0.5s ease, color 0.5s ease; 
+            overflow-x: hidden;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
 
-{% block content %}
-<div class="page-header">
-    <a href="{% url 'home' %}" class="back-link">← All Elections</a>
+        /* Apple-style Frosted Glass */
+        .glass-panel {
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            box-shadow: 0 4px 24px rgba(0, 0, 0, 0.04);
+        }
+        .dark .glass-panel {
+            box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+            border-top: 1px solid rgba(255, 255, 255, 0.05);
+        }
 
-    <div class="election-status-badge status-{{ election.status }}">
-        {{ election.status|upper }}
+        /* Ambient Mesh Background Animation */
+        .ambient-blob {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(80px);
+            opacity: 0.25; 
+            z-index: -1;
+            animation: float 20s ease-in-out infinite alternate;
+        }
+        .dark .ambient-blob { opacity: 0.15; filter: blur(100px); }
+        
+        .blob-1 { top: -10%; left: -10%; width: 50vw; height: 50vw; background: #3b82f6; animation-delay: 0s; }
+        .blob-2 { top: 40%; right: -10%; width: 60vw; height: 60vw; background: #8b5cf6; animation-delay: -5s; }
+        .blob-3 { bottom: -20%; left: 20%; width: 50vw; height: 50vw; background: #10b981; animation-delay: -10s; }
+
+        @keyframes float {
+            0% { transform: translate(0, 0) scale(1); }
+            33% { transform: translate(5%, 10%) scale(1.1); }
+            66% { transform: translate(-5%, 5%) scale(0.9); }
+            100% { transform: translate(0, -10%) scale(1); }
+        }
+
+        /* Smooth Reveal */
+        .reveal-hidden { 
+            opacity: 0; 
+            transform: translateY(40px) scale(0.98); 
+            transition: all 1s cubic-bezier(0.16, 1, 0.3, 1); 
+        }
+        .reveal-visible { opacity: 1; transform: translateY(0) scale(1); }
+
+        /* Custom Radio Button Styles */
+        input[type="radio"]:checked + label { border-color: #3b82f6; }
+        .dark input[type="radio"]:checked + label {
+            background-color: rgba(37, 99, 235, 0.1);
+            box-shadow: inset 0 0 0 1px #3b82f6, 0 0 20px rgba(37, 99, 235, 0.15);
+        }
+        html:not(.dark) input[type="radio"]:checked + label {
+            background-color: #eff6ff;
+            box-shadow: inset 0 0 0 1px #3b82f6, 0 4px 15px rgba(37, 99, 235, 0.1);
+        }
+        input[type="radio"]:checked + label .radio-circle {
+            border-color: #3b82f6; background-color: #3b82f6;
+        }
+
+        /* --- PRINT STYLES --- */
+        @media print {
+            body * { visibility: hidden; }
+            #receiptModal, #receiptModal * { visibility: visible; }
+            #receiptModal { 
+                position: absolute; left: 0; top: 0; 
+                width: 100%; height: 100%; 
+                background: white !important; 
+                align-items: flex-start;
+                padding-top: 40px;
+            }
+            .receipt-card { 
+                box-shadow: none !important; 
+                border: 2px solid #ccc !important; 
+                background: white !important;
+                color: black !important;
+            }
+            .receipt-text { color: black !important; }
+            .no-print { display: none !important; }
+        }
+    </style>
+</head>
+<body class="bg-apple-light text-gray-900 dark:bg-apple-dark dark:text-gray-100 selection:bg-blue-500 selection:text-white">
+
+    <script>
+        if (localStorage.getItem('color-theme') === 'dark' || (!('color-theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            document.documentElement.classList.add('dark');
+        } else {
+            document.documentElement.classList.remove('dark');
+        }
+    </script>
+
+    <div class="fixed inset-0 overflow-hidden pointer-events-none z-[-1] no-print">
+        <div class="ambient-blob blob-1"></div>
+        <div class="ambient-blob blob-2"></div>
+        <div class="ambient-blob blob-3"></div>
     </div>
 
-    <h1 class="page-title">{{ election.title }}</h1>
-    <p class="page-subtitle">{{ election.description }}</p>
-
-    <div class="election-timing">
-        <span>Start: {{ election.start_time|date:"M d, Y H:i" }} UTC</span>
-        <span>End: {{ election.end_time|date:"M d, Y H:i" }} UTC</span>
-        <span>Total Votes: {{ election.total_votes }}</span>
-    </div>
-</div>
-
-
-{% if election.status == 'active' and not user_vote %}
-
-<!-- ===================== VOTING FORM ===================== -->
-<div class="vote-section">
-    <h2 class="section-title">Secure Voting Panel</h2>
-
-    <form method="POST" action="{% url 'cast_vote' election.id %}" id="voteForm">
-        {% csrf_token %}
-
-        <!-- 🧾 ID INPUT -->
-        <div style="margin-bottom: 25px;">
-            <label style="color:#ccc; font-size:14px;">
-                Enter your ID (Aadhaar / College ID)
-            </label>
-
-            <input
-                type="text"
-                name="aadhaar"
-                placeholder="Enter your ID"
-                required
-                style="width:100%; padding:12px; border-radius:6px; border:1px solid #333; margin-top:6px;"
-            >
-        </div>
-
-        <!-- 🗳 CANDIDATES -->
-        <div class="candidates-grid">
-            {% for candidate in candidates %}
-            <label class="candidate-card" for="candidate_{{ candidate.id }}">
-                <input
-                    type="radio"
-                    name="candidate_id"
-                    id="candidate_{{ candidate.id }}"
-                    value="{{ candidate.id }}"
-                    class="candidate-radio"
-                >
-
-                <div class="candidate-inner">
-                    <div class="candidate-avatar">
-                        {{ candidate.name|slice:":1" }}
-                    </div>
-
-                    <div class="candidate-info">
-                        <h3 class="candidate-name">{{ candidate.name }}</h3>
-                        <p class="candidate-desc">{{ candidate.description }}</p>
-                    </div>
-
-                    <div class="candidate-check">✓</div>
+    <nav class="fixed top-0 w-full z-50 glass-panel bg-white/70 dark:bg-black/50 border-b border-gray-200/50 dark:border-white/5 no-print">
+        <div class="max-w-6xl mx-auto px-6 py-4 flex justify-between items-center">
+            <div class="flex items-center space-x-2 cursor-pointer" onclick="window.location.href='{% url 'home' %}'">
+                <div class="w-6 h-6 rounded-full bg-black dark:bg-white flex items-center justify-center transition-transform hover:scale-110">
+                    <span class="text-white dark:text-black font-bold text-xs">C</span>
                 </div>
-            </label>
+                <span class="text-lg font-semibold tracking-tight">ChainVote</span>
+            </div>
+            
+            <div class="flex items-center space-x-6">
+                <a href="{% url 'blockchain_explorer' election.id %}" class="flex items-center text-emerald-600 dark:text-emerald-500 font-bold mb-3 tracking-widest text-xs">
+                    <span class="w-1.5 h-1.5 bg-emerald-500 rounded-full mr-2 animate-pulse"></span> Ledger
+                </a>
+                <button id="theme-toggle" class="text-gray-600 hover:text-black dark:text-gray-500 dark:hover:text-white transition">
+                    <svg id="theme-toggle-dark-icon" class="hidden w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"></path></svg>
+                    <svg id="theme-toggle-light-icon" class="hidden w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z"></path></svg>
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <main class="max-w-2xl mx-auto px-4 pt-32 pb-24 relative z-10 reveal-hidden">
+        
+        <a href="{% url 'home' %}" class="no-print text-slate-500 hover:text-slate-900 dark:hover:text-white transition flex items-center text-sm font-semibold mb-6 w-fit">
+            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+            Abort & Return
+        </a>
+
+        {% if messages %}
+            {% for message in messages %}
+                {% if message.tags == 'success' %}
+                    <div id="receiptModal" class="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 animate-[fadeIn_0.5s_ease-out]">
+                        <div class="absolute inset-0 bg-black/60 backdrop-blur-sm no-print"></div>
+                        
+                        <div class="receipt-card bg-white dark:bg-[#0B1120] border border-gray-200 dark:border-gray-800 rounded-[2rem] p-8 md:p-12 shadow-2xl relative z-10 w-full max-w-lg text-center transform transition-all scale-100">
+                            
+                            <div class="w-16 h-16 bg-emerald-100 dark:bg-emerald-900/30 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-sm border border-emerald-200 dark:border-emerald-800">
+                                <svg class="w-8 h-8 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                            </div>
+                            
+                            <h2 class="text-3xl font-black text-gray-900 dark:text-white mb-2 receipt-text">Vote Recorded</h2>
+                            <p class="text-gray-500 dark:text-gray-400 mb-8 font-medium receipt-text">{{ message }}</p>
+                            
+                            <div class="bg-gray-50 dark:bg-black/40 rounded-2xl p-6 text-left mb-8 border border-gray-200 dark:border-gray-800 shadow-inner dark:shadow-none">
+                                <div class="mb-5">
+                                    <p class="text-[10px] text-gray-500 uppercase tracking-widest font-bold mb-1">Network Status</p>
+                                    <div class="flex items-center">
+                                        <span class="w-2 h-2 bg-emerald-500 rounded-full animate-pulse mr-2 no-print"></span>
+                                        <p class="font-semibold text-gray-900 dark:text-white receipt-text text-sm">Block Mined Successfully</p>
+                                    </div>
+                                </div>
+
+                                <div class="mb-5">
+                                    <p class="text-[10px] text-gray-500 uppercase tracking-widest font-bold mb-1">Election Target</p>
+                                    <p class="font-mono font-semibold text-gray-900 dark:text-white receipt-text text-sm">{{ election.title }}</p>
+                                </div>
+                                
+                                <div>
+                                    <p class="text-[10px] text-gray-500 uppercase tracking-widest font-bold mb-1">Timestamp (Local)</p>
+                                    <p class="font-mono text-gray-900 dark:text-white receipt-text text-sm" id="receiptTime"></p>
+                                </div>
+                            </div>
+
+                            <p class="text-[10px] text-gray-400 dark:text-gray-500 mb-8 italic">Please save or print this receipt. Your identity has been zero-knowledge hashed and cannot be retrieved by our servers.</p>
+
+                            <div class="flex flex-col sm:flex-row gap-4 no-print">
+                                <button onclick="window.print()" class="flex-1 bg-blue-600 hover:bg-blue-500 text-white font-bold py-3.5 rounded-xl transition shadow-md flex justify-center items-center">
+                                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
+                                    Print Receipt
+                                </button>
+                                <a href="{% url 'home' %}" class="flex-1 bg-gray-200 dark:bg-gray-800 hover:bg-gray-300 dark:hover:bg-gray-700 text-gray-900 dark:text-white font-bold py-3.5 rounded-xl transition flex justify-center items-center">
+                                    Return to Network
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                    <style>@keyframes fadeIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }</style>
+                    <script>document.getElementById('receiptTime').innerText = new Date().toLocaleString();</script>
+                {% else %}
+                    <div class="p-4 rounded-lg font-mono text-sm border shadow-sm bg-red-50 border-red-200 text-red-700 dark:bg-red-950/50 dark:border-red-900 dark:text-red-400 no-print">
+                        > SECURITY_ALERT: {{ message }}
+                    </div>
+                {% endif %}
             {% endfor %}
+        {% endif %}
+
+        <div class="bg-white/80 dark:bg-[#0B1120]/90 glass-panel border border-slate-200 dark:border-slate-800 rounded-[2rem] shadow-xl dark:shadow-2xl overflow-hidden no-print">
+            
+            <div class="p-8 md:p-10 border-b border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-gradient-to-b dark:from-slate-900/50 dark:to-[#0B1120]">
+                
+                <h1 class="text-3xl font-black text-slate-900 dark:text-white tracking-tight">{{ election.title }}</h1>
+                <p class="text-slate-600 dark:text-slate-400 mt-2 font-medium">{{ election.description }}</p>
+            </div>
+
+            <form id="voteForm" method="POST" action="{% url 'cast_vote' election.id %}" class="p-8 md:p-10" onsubmit="animateSubmit(event)">
+                {% csrf_token %}
+                
+                <div class="mb-12">
+                    <h2 class="text-sm font-bold text-blue-600 dark:text-blue-400 uppercase tracking-widest mb-4 flex items-center">
+                        <span class="bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300 w-6 h-6 flex items-center justify-center rounded-full text-xs mr-3 border border-blue-200 dark:border-blue-800">1</span>
+                        Verify Identity
+                    </h2>
+                    
+                    <div class="bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-inner dark:shadow-none">
+                        <label class="block text-slate-700 dark:text-slate-300 text-sm font-semibold mb-2" for="aadhaar">Unique Voter ID (Aadhaar / Roll No.)</label>
+                        <input type="password" name="aadhaar" id="aadhaar" required
+                               class="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-4 py-3 text-slate-900 dark:text-white font-mono placeholder-slate-400 dark:placeholder-slate-600 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:focus:ring-blue-500 transition shadow-sm"
+                               placeholder="Enter ID...">
+                        <p class="text-[11px] text-slate-500 dark:text-slate-500 mt-3 font-mono flex items-start leading-relaxed">
+                            <svg class="w-4 h-4 text-emerald-500 mr-1.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+                            Zero-Knowledge Proof: Your ID is run through a one-way SHA-256 hash. The raw number is NEVER saved.
+                        </p>
+                    </div>
+                </div>
+
+                <div class="mb-12">
+                    <h2 class="text-sm font-bold text-blue-600 dark:text-blue-400 uppercase tracking-widest mb-4 flex items-center">
+                        <span class="bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300 w-6 h-6 flex items-center justify-center rounded-full text-xs mr-3 border border-blue-200 dark:border-blue-800">2</span>
+                        Select Candidate
+                    </h2>
+                    
+                    <div class="space-y-3">
+                        {% for candidate in candidates %}
+                        <div class="relative group">
+                            <input class="sr-only peer" type="radio" name="candidate_id" value="{{ candidate.id }}" id="candidate_{{ candidate.id }}" required>
+                            <label class="flex p-5 cursor-pointer bg-white dark:bg-transparent border border-slate-200 dark:border-slate-800 rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-900/50 transition shadow-sm dark:shadow-none" for="candidate_{{ candidate.id }}">
+                                <div class="w-5 h-5 rounded-full border-2 border-slate-300 dark:border-slate-600 mr-5 flex-shrink-0 radio-circle flex items-center justify-center mt-0.5 transition bg-white dark:bg-transparent">
+                                    <div class="w-2.5 h-2.5 bg-white rounded-full opacity-0 peer-checked:opacity-100 transition-opacity"></div>
+                                </div>
+                                <div>
+                                    <h3 class="text-slate-900 dark:text-white font-bold text-lg">{{ candidate.name }}</h3>
+                                    {% if candidate.description %}
+                                        <p class="text-slate-500 dark:text-slate-400 text-sm mt-1 leading-relaxed">{{ candidate.description }}</p>
+                                    {% endif %}
+                                </div>
+                            </label>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <button type="submit" id="submitBtn" class="w-full bg-slate-900 hover:bg-slate-800 dark:bg-blue-600 dark:hover:bg-blue-500 text-white font-bold text-lg py-4 rounded-2xl transition duration-300 shadow-md dark:shadow-[0_0_20px_rgba(37,99,235,0.3)] flex justify-center items-center group">
+                    <svg class="w-5 h-5 mr-2 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+                    <span id="btnText">Encrypt & Commit to Ledger</span>
+                </button>
+            </form>
         </div>
+    </main>
 
-        <!-- SUBMIT -->
-        <div class="vote-submit">
-            <button type="submit" class="btn btn-primary btn-large" id="submitBtn" disabled>
-                🔐 Submit Secure Vote
-            </button>
+    <script>
+        const themeToggleBtn = document.getElementById('theme-toggle');
+        const darkIcon = document.getElementById('theme-toggle-dark-icon');
+        const lightIcon = document.getElementById('theme-toggle-light-icon');
 
-            <p class="vote-warning">
-                ⚠ Your vote is encrypted and cannot be changed.
-            </p>
-        </div>
-    </form>
-</div>
+        if (document.documentElement.classList.contains('dark')) { lightIcon.classList.remove('hidden'); } 
+        else { darkIcon.classList.remove('hidden'); }
 
+        themeToggleBtn.addEventListener('click', function() {
+            darkIcon.classList.toggle('hidden'); lightIcon.classList.toggle('hidden');
+            if (document.documentElement.classList.contains('dark')) {
+                document.documentElement.classList.remove('dark'); localStorage.setItem('color-theme', 'light');
+            } else {
+                document.documentElement.classList.add('dark'); localStorage.setItem('color-theme', 'dark');
+            }
+        });
 
-{% elif user_vote %}
+        document.addEventListener("DOMContentLoaded", () => {
+            setTimeout(() => { document.querySelector('.reveal-hidden').classList.add('reveal-visible'); }, 100);
+        });
 
-<!-- ===================== ALREADY VOTED ===================== -->
-<div class="voted-confirmation">
-    <div class="voted-icon">✅</div>
-
-    <h2>Vote Recorded Securely!</h2>
-
-    <p>Your vote has been encrypted and stored.</p>
-
-    <p class="voted-time">
-        Cast at {{ user_vote.voted_at|date:"M d, Y H:i" }} UTC
-    </p>
-
-    <div style="margin-top: 15px;">
-        <span style="color:#0f0;">🔐 Your vote is hidden until results are unlocked</span>
-    </div>
-</div>
-
-
-{% elif election.status == 'upcoming' %}
-
-<!-- ===================== UPCOMING ===================== -->
-<div class="info-box">
-    🔵 This election hasn't started yet.<br>
-    Starts at {{ election.start_time|date:"M d, Y H:i" }} UTC
-</div>
-
-
-{% elif election.status == 'ended' %}
-
-<!-- ===================== ENDED ===================== -->
-<div class="info-box">
-    ⚫ This election has ended.<br>
-
-    <a href="{% url 'results' election.id %}" class="btn btn-primary" style="margin-top:10px;">
-        View Final Results →
-    </a>
-</div>
-
-{% endif %}
-
-
-<!-- ===================== RESULTS STATUS ===================== -->
-<div class="results-preview">
-    <h2 class="section-title">Results Status</h2>
-
-    {% if election.status != 'ended' %}
-        <div class="info-box">
-            🔒 Results are encrypted and hidden until the election ends.
-        </div>
-    {% else %}
-        <div class="info-box">
-            ✅ Election completed. Results are now available.
-
-            <a href="{% url 'results' election.id %}" class="btn btn-primary" style="margin-left:10px;">
-                View Results
-            </a>
-        </div>
-    {% endif %}
-</div>
-
-{% endblock %}
+        function animateSubmit(e) {
+            e.preventDefault(); 
+            const btn = document.getElementById('submitBtn');
+            const form = document.getElementById('voteForm');
+            
+            btn.classList.remove('bg-slate-900', 'hover:bg-slate-800', 'dark:bg-blue-600', 'dark:hover:bg-blue-500');
+            btn.classList.add('bg-emerald-600', 'hover:bg-emerald-600');
+            btn.style.boxShadow = "0 0 30px rgba(16, 185, 129, 0.5)";
+            
+            document.getElementById('btnText').innerHTML = "GENERATING SHA-256 HASH...";
+            
+            setTimeout(() => { document.getElementById('btnText').innerHTML = "MINING BLOCK..."; }, 800);
+            setTimeout(() => { form.submit(); }, 1500);
+        }
+    </script>
+</body>
+</html>

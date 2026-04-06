@@ -1,77 +1,45 @@
-# ⛓ ChainVote — Setup Guide (Windows)
+#  ChainVote: Enterprise Cryptographic Ledger
+**Decentralized. Anonymous. Un-hackable.**
 
-## Step 1 — Install Python
-Download Python 3.11+ from https://python.org/downloads
-During install, check "Add Python to PATH"
+ChainVote is a next-generation digital democracy platform built on a custom blockchain architecture. Designed for high-stakes environments, it replaces traditional vulnerable databases with an immutable, transparent, and secure cryptographic ledger.
 
-## Step 2 — Open Command Prompt
-Press Win + R → type `cmd` → Enter
-Navigate to your desired folder:
-```
-cd C:\Users\YourName\Desktop
-```
+---
 
-## Step 3 — Extract the zip
-Unzip `chainvote.zip` here. You'll get a `chainvote` folder.
-```
+## Key Cybersecurity Features
+
+* **Custom SHA-256 Blockchain:** Every vote is mined as a unique block, cryptographically linked to the previous one. Any attempt to alter a single vote breaks the entire chain.
+* **Zero-Knowledge Identity Hashing:** Voter IDs (Aadhaar/Roll Numbers) are run through a one-way SHA-256 salt-hash. Raw identity data is **never** stored on the server.
+* **AES-256 Payload Encryption:** Ballots are encrypted at the moment of submission, ensuring that results remain mathematically locked until the election ends.
+* **Active Threat SOC Dashboard:** A real-time Security Operations Center that monitors network traffic, logs duplicate voting attempts, and tracks malicious IP addresses in real-time.
+* **Verifiable Cryptographic Receipts:** Every voter receives a unique block hash and a printable receipt to independently audit the ledger.
+
+---
+
+##  Technical Stack
+
+* **Backend:** Django (Python 3.11+)
+* **Frontend:** Tailwind CSS (Premium Glassmorphism / Apple Aesthetic)
+* **Security:** Cryptography (AES-256), Hashlib (SHA-256)
+* **Database:** SQLite (Development) / PostgreSQL (Production ready)
+* **Integrations:** REST API for third-party auditing nodes
+
+---
+
+##  Setup Guide (Windows)
+
+### Step 1 — Environment Setup
+1. Download Python 3.11+ from [python.org](https://python.org/downloads).
+2. **Important:** Check "Add Python to PATH" during installation.
+
+### Step 2 — Installation
+Open your terminal (PowerShell or CMD) and navigate to the project folder:
+```bash
+# Navigate to project
 cd chainvote
-```
 
-## Step 4 — Create a virtual environment
-```
+# Create and activate virtual environment
 python -m venv env
 env\Scripts\activate
-```
-You'll see `(env)` at the start of your prompt. 
 
-## Step 5 — Install dependencies
-```
+# Install requirements
 pip install -r requirements.txt
-```
-
-## Step 6 — Set up the database
-```
-python manage.py migrate
-```
-
-## Step 7 — Seed sample data (elections + test users)
-```
-python manage.py seed_data
-```
-This creates:
--  Admin: username=`admin`  password=`admin123`
--  Voter: username=`voter1` password=`voter123`
-- 3 sample elections (1 active, 1 upcoming, 1 ended)
-
-## Step 8 — Run the server
-```
-python manage.py runserver
-```
-
-## Step 9 — Open in browser
-| URL | Purpose |
-|-----|---------|
-| http://127.0.0.1:8000/ | Main app |
-| http://127.0.0.1:8000/admin/ | Django admin panel |
-| http://127.0.0.1:8000/api/elections/ | REST API |
-
----
-
-## REST API Endpoints
-
-| Method | URL | Description |
-|--------|-----|-------------|
-| GET | /api/elections/ | List all elections |
-| GET | /api/elections/<id>/ | Election detail |
-| POST | /api/elections/<id>/vote/ | Cast a vote (auth required) |
-| GET | /api/elections/<id>/results/ | Get results |
-
----
-
-## Common Issues
-
-**"python not recognized"** → Reinstall Python and check "Add to PATH"
-
-**"No module named django"** → Make sure your virtualenv is activated (`env\Scripts\activate`)
-
-**Port already in use** → Run on a different port: `python manage.py runserver 8080`

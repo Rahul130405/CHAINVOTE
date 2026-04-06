@@ -1,243 +1,343 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Live Blockchain - {{ election.title }}</title>
+    <title>Live Ledger - {{ election.title }}</title>
+    
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        apple: {
+                            light: '#f5f5f7',
+                            dark: '#000000',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    
     <style>
-        /* Base typography and scrollbar */
-        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Inter:wght@400;600;800&display=swap');
-        body { font-family: 'Inter', sans-serif; background-color: #030712; color: #e2e8f0; }
-        ::-webkit-scrollbar { width: 8px; }
-        ::-webkit-scrollbar-track { background: #030712; }
-        ::-webkit-scrollbar-thumb { background: #1f2937; border-radius: 4px; }
-
-        .font-mono { font-family: 'JetBrains Mono', monospace; word-break: break-all; }
-
-        /* JS Scroll Animation Classes */
-        .block-hidden {
-            opacity: 0;
-            transform: translateY(40px) scale(0.98);
-            transition: all 0.7s cubic-bezier(0.16, 1, 0.3, 1);
-        }
-        .block-visible {
-            opacity: 1;
-            transform: translateY(0) scale(1);
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Inter:wght@400;500;600;700;800;900&display=swap');
+        
+        body { 
+            transition: background-color 0.5s ease, color 0.5s ease; 
+            overflow-x: hidden;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
         }
 
-        /* Animated Glowing Data Line */
-        .chain-line {
-            position: absolute;
-            left: 28px;
-            top: 0;
-            bottom: -32px;
-            width: 2px;
-            background: rgba(30, 58, 138, 0.3);
-            z-index: 0;
+        /* Apple-style Frosted Glass */
+        .glass-panel {
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            box-shadow: 0 4px 24px rgba(0, 0, 0, 0.04);
         }
-        .chain-glow {
-            position: absolute;
-            top: 0;
-            left: -1px;
-            width: 4px;
-            height: 100px;
-            background: linear-gradient(to bottom, transparent, #3b82f6, #06b6d4, transparent);
-            animation: dataFlow 3s infinite linear;
-            border-radius: 4px;
-            filter: blur(2px);
+        .dark .glass-panel {
+            box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+            border-top: 1px solid rgba(255, 255, 255, 0.05);
         }
-        @keyframes dataFlow {
-            0% { top: -100px; opacity: 0; }
+
+        /* Ambient Mesh Background Animation */
+        .ambient-blob {
+            position: fixed;
+            border-radius: 50%;
+            filter: blur(80px);
+            opacity: 0.25; 
+            z-index: -1;
+            animation: float 20s ease-in-out infinite alternate;
+        }
+        .dark .ambient-blob { opacity: 0.15; filter: blur(100px); }
+        
+        .blob-1 { top: 0%; left: 0%; width: 40vw; height: 40vw; background: #3b82f6; animation-delay: 0s; }
+        .blob-2 { top: 30%; right: 0%; width: 50vw; height: 50vw; background: #8b5cf6; animation-delay: -5s; }
+        .blob-3 { bottom: 0%; left: 20%; width: 60vw; height: 60vw; background: #10b981; animation-delay: -10s; }
+
+        @keyframes float {
+            0% { transform: translate(0, 0) scale(1); }
+            33% { transform: translate(5%, 10%) scale(1.1); }
+            66% { transform: translate(-5%, 5%) scale(0.9); }
+            100% { transform: translate(0, -10%) scale(1); }
+        }
+
+        /* Scroll Reveal for Blocks */
+        .block-hidden { 
+            opacity: 0; 
+            transform: translateY(40px) scale(0.98); 
+            transition: all 0.8s cubic-bezier(0.16, 1, 0.3, 1); 
+        }
+        .block-visible { opacity: 1; transform: translateY(0) scale(1); }
+
+        /* The Blockchain Connection Animation */
+        @keyframes flowDown {
+            0% { transform: translateY(-100%); opacity: 0; }
             20% { opacity: 1; }
             80% { opacity: 1; }
-            100% { top: 100%; opacity: 0; }
+            100% { transform: translateY(100%); opacity: 0; }
         }
 
-        /* Card Hover Effects */
-        .block-card {
-            transition: border-color 0.3s ease, box-shadow 0.3s ease;
-        }
-        .block-card:hover {
-            border-color: #3b82f6;
-            box-shadow: 0 0 30px rgba(59, 130, 246, 0.1);
-        }
-
-        /* Click to copy cursor */
         .copyable { cursor: pointer; transition: color 0.2s; }
-        .copyable:hover { color: #60a5fa; }
+        .copyable:hover { color: #3b82f6; }
     </style>
 </head>
-<body class="min-h-screen p-4 md:p-8 relative overflow-x-hidden">
+<body class="bg-apple-light text-gray-900 dark:bg-apple-dark dark:text-gray-100 selection:bg-blue-500 selection:text-white">
 
-    <div class="fixed inset-0 z-[-1] opacity-20" style="background-image: radial-gradient(#3b82f6 1px, transparent 1px); background-size: 40px 40px;"></div>
+    <script>
+        if (localStorage.getItem('color-theme') === 'dark' || (!('color-theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            document.documentElement.classList.add('dark');
+        } else {
+            document.documentElement.classList.remove('dark');
+        }
+    </script>
 
-    <header class="max-w-4xl mx-auto mb-16 mt-8 relative z-10">
-        <div class="flex flex-col md:flex-row justify-between items-start md:items-center border-b border-gray-800 pb-6">
-            <div>
-                <div class="flex items-center space-x-3 mb-2">
-                    <div class="relative flex h-3 w-3">
-                      <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                      <span class="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
-                    </div>
-                    <span class="text-emerald-500 text-xs font-bold tracking-widest uppercase">Network Synced</span>
+    <div class="fixed inset-0 overflow-hidden pointer-events-none z-[-1]">
+        <div class="ambient-blob blob-1"></div>
+        <div class="ambient-blob blob-2"></div>
+        <div class="ambient-blob blob-3"></div>
+        <div class="absolute inset-0 opacity-[0.03] dark:opacity-[0.05]" style="background-image: radial-gradient(currentColor 1px, transparent 1px); background-size: 32px 32px;"></div>
+    </div>
+
+    <nav class="fixed top-0 w-full z-50 glass-panel bg-white/70 dark:bg-black/50 border-b border-gray-200/50 dark:border-white/5">
+        <div class="max-w-5xl mx-auto px-6 py-4 flex justify-between items-center">
+            <div class="flex items-center space-x-2 cursor-pointer" onclick="window.location.href='{% url 'home' %}'">
+                <div class="w-6 h-6 rounded-full bg-black dark:bg-white flex items-center justify-center transition-transform hover:scale-110">
+                    <span class="text-white dark:text-black font-bold text-xs">C</span>
                 </div>
-                <h1 class="text-3xl md:text-5xl font-extrabold text-white tracking-tight mb-2">Ledger <span class="text-transparent bg-clip-text bg-gradient-to-r from-blue-500 to-cyan-400">Explorer</span></h1>
-                <p class="text-gray-400 text-lg">Election: {{ election.title }}</p>
+                <span class="text-lg font-semibold tracking-tight">ChainVote</span>
             </div>
             
-            <div class="mt-6 md:mt-0 flex space-x-4">
-                <button onclick="verifyIntegrity()" id="verifyBtn" class="bg-gray-900 border border-gray-700 hover:border-blue-500 hover:bg-gray-800 text-white px-4 py-2 rounded-lg text-sm font-semibold transition flex items-center shadow-lg">
-                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                    Verify Integrity
+            <div class="flex items-center space-x-4">
+                <button id="theme-toggle" class="text-gray-600 hover:text-black dark:text-gray-500 dark:hover:text-white transition">
+                    <svg id="theme-toggle-dark-icon" class="hidden w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"></path></svg>
+                    <svg id="theme-toggle-light-icon" class="hidden w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z"></path></svg>
                 </button>
-                <a href="{% url 'results' election.id %}" class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg text-sm font-semibold transition shadow-lg shadow-blue-500/20">
+                <a href="{% url 'results' election.id %}" class="text-sm font-semibold bg-black text-white dark:bg-white dark:text-black px-4 py-2 rounded-full hover:scale-105 transition transform shadow-sm">
                     Exit to Results
                 </a>
             </div>
         </div>
+    </nav>
+
+    <header class="max-w-3xl mx-auto px-6 pt-32 pb-12 relative z-10 block-hidden">
+        <div class="flex items-center space-x-2 mb-4">
+            <div class="relative flex h-2.5 w-2.5">
+              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+            </div>
+        </div>
+        <h1 class="text-5xl md:text-7xl font-bold tracking-tighter leading-tight mb-2 text-black dark:text-white">
+            Ledger Explorer
+        </h1>
+        <p class="text-lg text-gray-600 dark:text-gray-400 font-medium mb-10">{{ election.title }}</p>
+
+        <div class="flex flex-col md:flex-row gap-4">
+            <div class="flex-1 bg-white/80 dark:bg-black/40 glass-panel border border-gray-200/80 dark:border-white/10 rounded-2xl p-2 flex items-center shadow-sm focus-within:ring-2 focus-within:ring-blue-500/50 transition">
+                <svg class="w-5 h-5 text-gray-400 ml-3 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                <input type="text" id="hashSearch" onkeyup="searchBlockchain()" placeholder="Paste Voter Hash or Block Hash to audit..." class="w-full bg-transparent border-none text-gray-900 dark:text-white px-2 py-2 focus:outline-none placeholder-gray-500 dark:placeholder-gray-600 font-mono text-sm">
+            </div>
+            
+            <button onclick="verifyIntegrity()" id="verifyBtn" class="bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-white/10 text-gray-900 dark:text-white px-6 py-4 rounded-2xl text-sm font-semibold transition flex items-center justify-center shadow-sm glass-panel whitespace-nowrap">
+                <svg class="w-4 h-4 mr-2 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                Verify Integrity
+            </button>
+        </div>
+        <p id="searchResultMsg" class="text-emerald-600 dark:text-emerald-400 text-sm mt-3 hidden font-semibold pl-2 transition-all">✓ Cryptographic block found on the public ledger.</p>
     </header>
 
-    <div class="max-w-4xl mx-auto relative pl-6 md:pl-0 z-10" id="chain-container">
+    <div class="max-w-3xl mx-auto px-6 relative z-10 pb-32" id="chain-container">
         
         {% for vote in votes %}
-        <div class="relative mb-12 block-item">
+        <div class="relative mb-16 block-item">
             
             {% if not forloop.last %}
-            <div class="chain-line hidden md:block">
-                <div class="chain-glow"></div>
+            <div class="absolute left-8 md:left-12 top-[100%] h-16 w-1.5 bg-gray-200 dark:bg-white/5 rounded-full overflow-hidden z-0">
+                <div class="w-full h-full bg-gradient-to-b from-transparent via-blue-500 to-transparent animate-[flowDown_2s_linear_infinite]"></div>
+            </div>
+            <div class="absolute left-[38px] md:left-[54px] top-[calc(100%+1.5rem)] text-[10px] font-mono font-bold text-blue-500 dark:text-blue-400 uppercase tracking-widest bg-apple-light dark:bg-apple-dark px-1 py-0.5 rounded z-10">
+                SHA-256 Link
             </div>
             {% endif %}
 
-            <div class="hidden md:flex absolute left-5 top-8 w-4 h-4 rounded-full bg-blue-900 border-2 border-blue-400 z-10 items-center justify-center transform -translate-x-1/2 shadow-[0_0_15px_rgba(59,130,246,0.6)]">
-                <div class="w-1.5 h-1.5 bg-cyan-300 rounded-full"></div>
-            </div>
-
-            <div class="block-hidden block-card ml-0 md:ml-16 bg-[#0B1120] border border-gray-800/60 rounded-xl p-6 shadow-2xl backdrop-blur-sm">
+            <div class="block-hidden block-card glass-panel bg-white/80 dark:bg-[#0B1120]/80 border border-gray-200/80 dark:border-white/10 rounded-[2rem] p-6 md:p-10 shadow-lg relative z-10 transition-all duration-300">
                 
-                <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-5 pb-4 border-b border-gray-800/50">
-                    <h2 class="text-xl font-bold text-gray-100 flex items-center">
-                        <svg class="w-5 h-5 mr-3 text-cyan-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path></svg>
+                <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 pb-5 border-b border-gray-200 dark:border-white/10">
+                    <h2 class="text-xl md:text-2xl font-bold text-gray-900 dark:text-white flex items-center">
+                        <div class="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center mr-3 border border-blue-200 dark:border-blue-800">
+                            <svg class="w-4 h-4 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path></svg>
+                        </div>
                         Block #{{ vote.id }}
                     </h2>
-                    <span class="text-sm text-gray-500 mt-2 md:mt-0">{{ vote.voted_at|date:"M d, Y • H:i:s.u" }}</span>
+                    <span class="text-xs font-semibold text-gray-500 dark:text-gray-400 mt-3 md:mt-0 bg-gray-100 dark:bg-white/5 px-3 py-1.5 rounded-full">
+                        {{ vote.voted_at|date:"M d, Y • H:i:s.u" }}
+                    </span>
                 </div>
 
                 <div class="space-y-4">
                     
-                    <div class="group bg-black/40 rounded-lg p-3 border-l-2 border-orange-500/50 hover:bg-black/60 transition">
-                        <div class="flex justify-between items-center mb-1">
-                            <span class="text-[11px] text-gray-500 uppercase tracking-widest font-bold flex items-center">
+                    <div class="group bg-white dark:bg-black/40 rounded-2xl p-4 border border-gray-100 dark:border-white/5 shadow-sm dark:shadow-none hover:border-gray-300 dark:hover:border-gray-700 transition">
+                        <div class="flex justify-between items-center mb-1.5">
+                            <span class="text-[10px] text-gray-500 dark:text-gray-400 uppercase tracking-widest font-bold flex items-center">
                                 <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"></path></svg>
                                 Linked Previous Hash
                             </span>
-                            <span class="text-[10px] text-gray-600 opacity-0 group-hover:opacity-100 transition">Click to copy</span>
+                            <span class="text-[10px] text-blue-500 opacity-0 group-hover:opacity-100 transition">Copy</span>
                         </div>
-                        <p class="font-mono text-orange-200/70 text-sm copyable" onclick="copyToClipboard(this, '{{ vote.previous_hash }}')">{{ vote.previous_hash }}</p>
+                        <p class="font-mono text-gray-600 dark:text-gray-400 text-xs break-all copyable" onclick="copyToClipboard(this, '{{ vote.previous_hash }}')">{{ vote.previous_hash }}</p>
                     </div>
 
-                    <div class="group bg-black/40 rounded-lg p-3 border-l-2 border-gray-700 hover:bg-black/60 transition">
-                        <div class="flex justify-between items-center mb-1">
-                            <span class="text-[11px] text-gray-500 uppercase tracking-widest font-bold">Encrypted Payload</span>
+                    <div class="group bg-gray-50 dark:bg-black/20 rounded-2xl p-4 border border-gray-100 dark:border-transparent transition">
+                        <div class="flex justify-between items-center mb-1.5">
+                            <span class="text-[10px] text-gray-500 dark:text-gray-500 uppercase tracking-widest font-bold">Encrypted Payload (AES-256)</span>
                         </div>
-                        <p class="font-mono text-gray-400 text-sm break-all">{{ vote.encrypted_vote }}</p>
+                        <p class="font-mono text-gray-400 dark:text-gray-600 text-xs break-all">{{ vote.encrypted_vote }}</p>
                     </div>
 
-                    <div class="group bg-blue-900/10 rounded-lg p-3 border border-blue-500/20 hover:border-blue-500/50 hover:bg-blue-900/20 transition relative overflow-hidden">
-                        <div class="flex justify-between items-center mb-1">
-                            <span class="text-[11px] text-blue-400 uppercase tracking-widest font-bold">Generated Block Hash</span>
-                            <span class="text-[10px] text-blue-600 opacity-0 group-hover:opacity-100 transition">Click to copy</span>
+                    <span class="hidden searchable-voter-hash">{{ vote.voter_hash }}</span>
+
+                    <div class="group bg-blue-50 dark:bg-blue-900/10 rounded-2xl p-4 border border-blue-200 dark:border-blue-500/20 hover:border-blue-400 transition relative overflow-hidden">
+                        <div class="flex justify-between items-center mb-1.5">
+                            <span class="text-[10px] text-blue-600 dark:text-blue-400 uppercase tracking-widest font-bold">Generated Block Hash</span>
+                            <span class="text-[10px] text-blue-600 dark:text-blue-400 opacity-0 group-hover:opacity-100 transition">Copy</span>
                         </div>
-                        <p class="font-mono text-blue-300 font-semibold text-sm copyable drop-shadow-md" onclick="copyToClipboard(this, '{{ vote.block_hash }}')">{{ vote.block_hash }}</p>
+                        <p class="font-mono text-blue-700 dark:text-blue-300 font-semibold text-xs break-all copyable" onclick="copyToClipboard(this, '{{ vote.block_hash }}')">{{ vote.block_hash }}</p>
                     </div>
+
                 </div>
             </div>
         </div>
         
         {% empty %}
-        <div class="block-hidden block-card mt-10 text-center py-20 bg-[#0B1120] border border-dashed border-gray-700 rounded-xl">
-            <div class="animate-bounce mb-4"><svg class="w-12 h-12 mx-auto text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg></div>
-            <h3 class="text-2xl text-gray-300 font-bold">Ledger is Empty</h3>
-            <p class="text-gray-500 mt-2">Waiting for the Genesis Block to be mined...</p>
+        <div class="block-hidden block-card mt-10 text-center py-20 bg-white/50 dark:bg-white/5 border border-dashed border-gray-300 dark:border-gray-700 rounded-[2rem] glass-panel">
+            <div class="animate-bounce mb-6"><svg class="w-12 h-12 mx-auto text-gray-400 dark:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg></div>
+            <h3 class="text-2xl text-gray-900 dark:text-white font-bold">Ledger is Empty</h3>
+            <p class="text-gray-500 mt-2 font-medium">Waiting for the Genesis Block to be mined...</p>
         </div>
         {% endfor %}
 
     </div>
 
     <script>
-        // 1. Scroll-Triggered Reveal Animation using IntersectionObserver
-        document.addEventListener("DOMContentLoaded", () => {
-            const observerOptions = {
-                root: null,
-                rootMargin: '0px',
-                threshold: 0.15 // Triggers when 15% of the card is visible
-            };
+        // Theme Toggle Logic
+        const themeToggleBtn = document.getElementById('theme-toggle');
+        const darkIcon = document.getElementById('theme-toggle-dark-icon');
+        const lightIcon = document.getElementById('theme-toggle-light-icon');
 
+        if (document.documentElement.classList.contains('dark')) { lightIcon.classList.remove('hidden'); } 
+        else { darkIcon.classList.remove('hidden'); }
+
+        themeToggleBtn.addEventListener('click', function() {
+            darkIcon.classList.toggle('hidden'); lightIcon.classList.toggle('hidden');
+            if (document.documentElement.classList.contains('dark')) {
+                document.documentElement.classList.remove('dark'); localStorage.setItem('color-theme', 'light');
+            } else {
+                document.documentElement.classList.add('dark'); localStorage.setItem('color-theme', 'dark');
+            }
+        });
+
+        // Scroll Reveal Animation
+        document.addEventListener("DOMContentLoaded", () => {
+            // Reveal header immediately
+            setTimeout(() => { document.querySelector('header.block-hidden').classList.add('block-visible'); }, 100);
+
+            // Observer for blocks
+            const observerOptions = { root: null, rootMargin: '0px', threshold: 0.1 };
             const blockObserver = new IntersectionObserver((entries, observer) => {
                 entries.forEach((entry, index) => {
                     if (entry.isIntersecting) {
-                        // Add a slight stagger effect based on index if multiple appear at once
                         setTimeout(() => {
                             entry.target.classList.remove('block-hidden');
                             entry.target.classList.add('block-visible');
-                        }, index * 150);
-                        observer.unobserve(entry.target); // Only animate once
+                        }, index * 100); // slight stagger
+                        observer.unobserve(entry.target);
                     }
                 });
             }, observerOptions);
-
-            const blocks = document.querySelectorAll('.block-hidden');
-            blocks.forEach(block => blockObserver.observe(block));
+            
+            document.querySelectorAll('.block-item.block-hidden, .block-card.block-hidden').forEach(block => blockObserver.observe(block));
         });
 
-        // 2. Click to Copy Functionality
+        // Copy to clipboard
         function copyToClipboard(element, text) {
             navigator.clipboard.writeText(text).then(() => {
                 const originalHtml = element.innerHTML;
-                element.innerHTML = `<span class="text-emerald-400 font-bold">✓ COPIED TO CLIPBOARD</span>`;
-                element.style.color = "#34d399";
-                
-                setTimeout(() => {
-                    element.innerHTML = originalHtml;
-                    element.style.color = ""; // Reset to CSS default
-                }, 1500);
-            }).catch(err => {
-                console.error('Failed to copy: ', err);
+                element.innerHTML = `<span class="text-emerald-500 dark:text-emerald-400 font-bold">✓ COPIED TO CLIPBOARD</span>`;
+                setTimeout(() => { element.innerHTML = originalHtml; }, 1500);
             });
         }
 
-        // 3. Verify Integrity UI Simulation
+        // Verify Integrity Simulation
         function verifyIntegrity() {
             const btn = document.getElementById('verifyBtn');
             const originalHTML = btn.innerHTML;
             
-            // Set loading state
-            btn.innerHTML = `
-                <svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-                Scanning Hashes...
-            `;
-            btn.classList.add('bg-blue-600', 'border-blue-500');
-            btn.classList.remove('bg-gray-900');
-
-            // Simulate network delay
+            btn.innerHTML = `<svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>Scanning Hashes...`;
+            btn.classList.add('border-blue-500', 'text-blue-600', 'dark:text-blue-400'); 
+            
             setTimeout(() => {
-                btn.innerHTML = `
-                    <svg class="w-4 h-4 mr-2 text-emerald-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
-                    Chain Valid
-                `;
-                btn.classList.remove('bg-blue-600', 'border-blue-500');
-                btn.classList.add('bg-emerald-600', 'border-emerald-500');
+                btn.innerHTML = `<svg class="w-4 h-4 mr-2 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>Chain Valid`;
+                btn.classList.remove('border-blue-500', 'text-blue-600', 'dark:text-blue-400');
+                btn.classList.add('border-emerald-500', 'text-emerald-600', 'dark:text-emerald-400', 'bg-emerald-50', 'dark:bg-emerald-900/20');
                 
-                // Reset button after 3 seconds
                 setTimeout(() => {
-                    btn.innerHTML = originalHTML;
-                    btn.classList.remove('bg-emerald-600', 'border-emerald-500');
-                    btn.classList.add('bg-gray-900');
+                    btn.innerHTML = originalHTML; 
+                    btn.classList.remove('border-emerald-500', 'text-emerald-600', 'dark:text-emerald-400', 'bg-emerald-50', 'dark:bg-emerald-900/20'); 
                 }, 3000);
             }, 1800);
+        }
+
+        // Live Search Filter
+        function searchBlockchain() {
+            const input = document.getElementById('hashSearch').value.toLowerCase().trim();
+            const blocks = document.querySelectorAll('.block-item');
+            const resultMsg = document.getElementById('searchResultMsg');
+            let found = false;
+
+            if (input.length < 5) {
+                blocks.forEach(block => {
+                    block.style.opacity = '1';
+                    const card = block.querySelector('.block-card');
+                    if(card) { 
+                        card.classList.remove('ring-2', 'ring-blue-500');
+                        card.style.transform = 'scale(1)';
+                    }
+                });
+                resultMsg.classList.add('hidden');
+                return;
+            }
+
+            blocks.forEach(block => {
+                const blockText = block.innerText.toLowerCase();
+                const hiddenVoterHash = block.querySelector('.searchable-voter-hash').innerText.toLowerCase();
+                
+                if (blockText.includes(input) || hiddenVoterHash.includes(input)) {
+                    block.style.opacity = '1';
+                    const card = block.querySelector('.block-card');
+                    if(card) { 
+                        card.classList.add('ring-2', 'ring-blue-500');
+                        card.style.transform = 'scale(1.02)';
+                    }
+                    if(!found) { block.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+                    found = true;
+                } else {
+                    block.style.opacity = '0.3';
+                    const card = block.querySelector('.block-card');
+                    if(card) { 
+                        card.classList.remove('ring-2', 'ring-blue-500');
+                        card.style.transform = 'scale(0.98)';
+                    }
+                }
+            });
+
+            if (found) { resultMsg.classList.remove('hidden'); } else { resultMsg.classList.add('hidden'); }
         }
     </script>
 </body>

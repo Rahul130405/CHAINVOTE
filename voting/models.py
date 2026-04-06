@@ -109,3 +109,21 @@ class Vote(models.Model):
                 
         # Actually save it to the database
         super(Vote, self).save(*args, **kwargs)
+
+
+class SecurityLog(models.Model):
+    LEVEL_CHOICES = [
+        ('WARNING', 'Warning'),
+        ('CRITICAL', 'Critical Breach Attempt')
+    ]
+    level = models.CharField(max_length=20, choices=LEVEL_CHOICES, default='WARNING')
+    action = models.CharField(max_length=255)
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    details = models.TextField()
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-timestamp']
+
+    def __str__(self):
+        return f"[{self.level}] {self.action} - {self.ip_address}"

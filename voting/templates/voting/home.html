@@ -1,90 +1,363 @@
-{% extends 'voting/base.html' %}
-{% block title %}ChainVote — Elections{% endblock %}
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ChainVote | Secure Ledger</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'sans-serif'],
+                    },
+                    colors: {
+                        apple: {
+                            light: '#f5f5f7',
+                            dark: '#000000',
+                            cardLight: 'rgba(255, 255, 255, 0.7)',
+                            cardDark: 'rgba(28, 28, 30, 0.5)',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+        
+        body { 
+            transition: background-color 0.5s ease, color 0.5s ease; 
+            overflow-x: hidden;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
 
-{% block content %}
-<div class="page-header">
-    <h1 class="page-title">Active Elections</h1>
-    <p class="page-subtitle">Cast your vote. Every transaction is permanent.</p>
-</div>
+        /* Apple-style Frosted Glass */
+        .glass-panel {
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            box-shadow: 0 4px 24px rgba(0, 0, 0, 0.04);
+        }
+        .dark .glass-panel {
+            box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+            border-top: 1px solid rgba(255, 255, 255, 0.05);
+        }
 
-{% if active_elections %}
-<section class="election-section">
-    <div class="section-label section-label--active">🟢 LIVE NOW</div>
-    <div class="election-grid">
-        {% for election in active_elections %}
-        <div class="election-card election-card--active">
-            <div class="card-status">ACTIVE</div>
-            <h2 class="card-title">{{ election.title }}</h2>
-            <p class="card-desc">{{ election.description }}</p>
-            <div class="card-meta">
-                <span>🗳 {{ election.total_votes }} votes cast</span>
-                <span>⏰ Ends {{ election.end_time|date:"M d, Y H:i" }} UTC</span>
+        /* Ambient Mesh Background Animation */
+        .ambient-blob {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(80px);
+            opacity: 0.25; /* Softened for better Light Mode contrast */
+            z-index: -1;
+            animation: float 20s ease-in-out infinite alternate;
+        }
+        .dark .ambient-blob { opacity: 0.15; filter: blur(100px); }
+        
+        .blob-1 { top: -10%; left: -10%; width: 50vw; height: 50vw; background: #3b82f6; animation-delay: 0s; }
+        .blob-2 { top: 40%; right: -10%; width: 60vw; height: 60vw; background: #8b5cf6; animation-delay: -5s; }
+        .blob-3 { bottom: -20%; left: 20%; width: 50vw; height: 50vw; background: #10b981; animation-delay: -10s; }
+
+        @keyframes float {
+            0% { transform: translate(0, 0) scale(1); }
+            33% { transform: translate(5%, 10%) scale(1.1); }
+            66% { transform: translate(-5%, 5%) scale(0.9); }
+            100% { transform: translate(0, -10%) scale(1); }
+        }
+
+        /* Silky Smooth Scroll Reveal */
+        .reveal-hidden { 
+            opacity: 0; 
+            transform: translateY(40px) scale(0.98); 
+            transition: all 1s cubic-bezier(0.16, 1, 0.3, 1); 
+        }
+        .reveal-visible { opacity: 1; transform: translateY(0) scale(1); }
+    </style>
+</head>
+<body class="bg-apple-light text-gray-900 dark:bg-apple-dark dark:text-gray-100 selection:bg-blue-500 selection:text-white">
+
+    <script>
+        if (localStorage.getItem('color-theme') === 'dark' || (!('color-theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            document.documentElement.classList.add('dark');
+        } else {
+            document.documentElement.classList.remove('dark');
+        }
+    </script>
+
+    <div class="fixed inset-0 overflow-hidden pointer-events-none z-[-1]">
+        <div class="ambient-blob blob-1"></div>
+        <div class="ambient-blob blob-2"></div>
+        <div class="ambient-blob blob-3"></div>
+    </div>
+
+    <nav class="fixed top-0 w-full z-50 glass-panel bg-white/70 dark:bg-black/50 border-b border-gray-200/50 dark:border-white/5">
+        <div class="max-w-6xl mx-auto px-6 py-4 flex justify-between items-center">
+            <div class="flex items-center space-x-2">
+                <div class="w-6 h-6 rounded-full bg-black dark:bg-white flex items-center justify-center">
+                    <span class="text-white dark:text-black font-bold text-xs">C</span>
+                </div>
+                <span class="text-lg font-semibold tracking-tight">ChainVote</span>
             </div>
-            <div class="card-actions">
-                {% if user.is_authenticated %}
-                    {% if election.id in voted_election_ids %}
-                        <a href="{% url 'election_detail' election.id %}" class="btn btn-ghost">View Results</a>
-                        <span class="voted-badge">✅ Voted</span>
-                    {% else %}
-                        <a href="{% url 'election_detail' election.id %}" class="btn btn-primary">Cast Vote →</a>
-                    {% endif %}
+            
+            <div class="flex items-center space-x-6">
+                <button id="theme-toggle" class="text-gray-600 hover:text-black dark:text-gray-500 dark:hover:text-white transition">
+                    <svg id="theme-toggle-dark-icon" class="hidden w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"></path></svg>
+                    <svg id="theme-toggle-light-icon" class="hidden w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z"></path></svg>
+                </button>
+                
+
+                <a href="{% url 'threat_dashboard' %}" class="text-xs font-semibold tracking-wide text-red-600 hover:text-red-700 dark:text-red-500 dark:hover:text-red-400 transition flex items-center">
+                    <span class="w-1.5 h-1.5 bg-red-500 rounded-full mr-2 animate-pulse"></span> SOC
+                </a>
+                
+                {% if request.user.is_authenticated %}
+                    <a href="{% url 'logout' %}" class="text-sm font-medium text-gray-600 hover:text-black dark:text-gray-500 dark:hover:text-white transition">Sign Out</a>
                 {% else %}
-                    <a href="{% url 'login' %}?next={% url 'election_detail' election.id %}" class="btn btn-primary">Login to Vote →</a>
+                    <a href="{% url 'login' %}" class="text-sm font-medium bg-black text-white dark:bg-white dark:text-black px-4 py-1.5 rounded-full hover:scale-105 transition transform shadow-sm">Log In</a>
                 {% endif %}
-                <a href="{% url 'results' election.id %}" class="btn btn-ghost">Results</a>
             </div>
         </div>
-        {% endfor %}
-    </div>
-</section>
-{% endif %}
+    </nav>
 
-{% if upcoming_elections %}
-<section class="election-section">
-    <div class="section-label section-label--upcoming">🔵 UPCOMING</div>
-    <div class="election-grid">
-        {% for election in upcoming_elections %}
-        <div class="election-card election-card--upcoming">
-            <div class="card-status card-status--upcoming">UPCOMING</div>
-            <h2 class="card-title">{{ election.title }}</h2>
-            <p class="card-desc">{{ election.description }}</p>
-            <div class="card-meta">
-                <span>📅 Starts {{ election.start_time|date:"M d, Y H:i" }} UTC</span>
+    <main class="max-w-4xl mx-auto px-6 pt-32 pb-24 relative z-10">
+        
+        <div class="text-center mb-24 reveal-hidden">
+            <div class="inline-flex items-center justify-center px-4 py-1.5 rounded-full bg-white/80 dark:bg-white/10 border border-gray-200 dark:border-white/5 glass-panel mb-8 shadow-sm">
+                
+                
             </div>
-            <div class="card-actions">
-                <a href="{% url 'election_detail' election.id %}" class="btn btn-ghost">Preview</a>
+
+            <h1 class="text-6xl md:text-8xl font-bold tracking-tighter leading-tight mb-6 text-transparent bg-clip-text bg-gradient-to-br from-black to-gray-600 dark:from-white dark:to-gray-500">
+                Decentralized.<br>Anonymous.
+            </h1>
+            <p class="text-lg md:text-xl text-gray-600 dark:text-gray-400 max-w-2xl mx-auto font-medium leading-relaxed">
+                The next generation of digital democracy. Cast your zero-knowledge vote securely on the immutable ledger.
+            </p>
+        </div>
+
+        <div class="space-y-16">
+            
+            <div class="reveal-hidden">
+                <h2 class="text-sm font-bold tracking-widest uppercase text-gray-500 dark:text-gray-400 mb-6 pl-2">Active Terminals</h2>
+                
+                <div class="space-y-6">
+                    {% for election in active_elections %}
+                    <div class="bg-apple-cardLight dark:bg-apple-cardDark glass-panel rounded-[2rem] p-8 md:p-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-8 transition-transform hover:scale-[1.01] duration-300 border border-gray-200/60 dark:border-transparent">
+                        <div class="flex-1">
+                            <h3 class="text-3xl font-bold tracking-tight mb-3 text-black dark:text-white">{{ election.title }}</h3>
+                            <p class="text-gray-600 dark:text-gray-400 text-base leading-relaxed mb-6">{{ election.description|truncatewords:20 }}</p>
+                            <div class="inline-flex items-center text-xs font-semibold px-3 py-1.5 rounded-full bg-gray-200/50 dark:bg-white/10 text-gray-700 dark:text-gray-300">
+                                Closes in {{ election.end_time|timeuntil }}
+                            </div>
+                        </div>
+                        <div class="w-full md:w-auto flex-shrink-0">
+                            <a href="{% url 'election_detail' election.id %}" class="block text-center bg-black text-white dark:bg-white dark:text-black px-8 py-4 rounded-full font-semibold transition hover:opacity-80 active:scale-95 shadow-md">
+                                Enter Booth
+                            </a>
+                        </div>
+                    </div>
+                    {% empty %}
+                    <div class="bg-white/60 dark:bg-white/5 rounded-[2rem] p-12 text-center border border-gray-200/60 dark:border-white/5 glass-panel">
+                        <p class="text-gray-600 dark:text-gray-500 font-medium">No active elections at this time.</p>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8 reveal-hidden">
+                
+                <div>
+                    <h2 class="text-sm font-bold tracking-widest uppercase text-gray-500 dark:text-gray-400 mb-6 pl-2">Archived Ledgers</h2>
+                    <div class="space-y-4">
+                        {% for election in ended_elections %}
+                        <div class="bg-white/80 dark:bg-white/5 glass-panel p-6 rounded-3xl border border-gray-200/60 dark:border-white/5 hover:bg-white dark:hover:bg-white/10 transition">
+                            <h3 class="font-semibold text-lg tracking-tight mb-1 text-black dark:text-white">{{ election.title }}</h3>
+                            <p class="text-xs text-gray-600 dark:text-gray-500 mb-4"><span class="font-bold text-black dark:text-white">{{ election.total_votes }}</span> total votes recorded</p>
+                            
+                            <div class="flex space-x-3">
+                                <a href="{% url 'results' election.id %}" class="flex-1 text-center bg-gray-100 dark:bg-white/10 hover:bg-gray-200 dark:hover:bg-white/20 text-gray-800 dark:text-white py-2.5 rounded-full text-xs font-semibold transition">
+                                    Results
+                                </a>
+                                <a href="{% url 'blockchain_explorer' election.id %}" class="flex-1 text-center bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/40 text-blue-700 dark:text-blue-400 py-2.5 rounded-full text-xs font-semibold transition">
+                                    Audit Chain
+                                </a>
+                            </div>
+                        </div>
+                        {% empty %}
+                        <p class="text-gray-500 dark:text-gray-400 text-sm pl-2">No archived data.</p>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <div>
+                    <h2 class="text-sm font-bold tracking-widest uppercase text-gray-500 dark:text-gray-400 mb-6 pl-2">Scheduled</h2>
+                    <div class="space-y-4">
+                        {% for election in upcoming_elections %}
+                        <div class="bg-white/60 dark:bg-white/5 glass-panel p-6 rounded-3xl border border-gray-200/60 dark:border-white/5">
+                            <h3 class="font-semibold text-lg tracking-tight mb-1 text-black dark:text-white">{{ election.title }}</h3>
+                            <p class="text-sm text-gray-600 dark:text-gray-500">Starts {{ election.start_time|date:"M d, Y" }}</p>
+                        </div>
+                        {% empty %}
+                        <p class="text-gray-500 dark:text-gray-400 text-sm pl-2">No upcoming events.</p>
+                        {% endfor %}
+                    </div>
+                </div>
+
             </div>
         </div>
-        {% endfor %}
-    </div>
-</section>
-{% endif %}
+    </main>
 
-{% if ended_elections %}
-<section class="election-section">
-    <div class="section-label section-label--ended">⚫ ENDED</div>
-    <div class="election-grid">
-        {% for election in ended_elections %}
-        <div class="election-card election-card--ended">
-            <div class="card-status card-status--ended">ENDED</div>
-            <h2 class="card-title">{{ election.title }}</h2>
-            <p class="card-desc">{{ election.description }}</p>
-            <div class="card-meta">
-                <span>🗳 {{ election.total_votes }} total votes</span>
-                <span>📅 Ended {{ election.end_time|date:"M d, Y" }}</span>
+    <section class="py-24 border-t border-gray-200/60 dark:border-white/5 relative z-10">
+        <div class="max-w-5xl mx-auto px-6 reveal-hidden">
+            <div class="text-center mb-20">
+                <h2 class="text-4xl md:text-5xl font-bold tracking-tighter mb-6 text-black dark:text-white">Engineered for absolute trust.</h2>
+                <p class="text-lg text-gray-600 dark:text-gray-400 max-w-2xl mx-auto font-medium leading-relaxed">
+                    Traditional databases are vulnerable to silent tampering. ChainVote utilizes decentralized cryptography to guarantee mathematical integrity without compromising voter privacy.
+                </p>
             </div>
-            <div class="card-actions">
-                <a href="{% url 'results' election.id %}" class="btn btn-ghost">View Results</a>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                <div class="bg-white/80 dark:bg-white/5 glass-panel p-8 rounded-[2.5rem] border border-gray-200/60 dark:border-white/5 shadow-sm">
+                    <div class="w-12 h-12 bg-gray-100 dark:bg-white/10 rounded-2xl flex items-center justify-center mb-6 shadow-sm">
+                        <svg class="w-6 h-6 text-black dark:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
+                    </div>
+                    <h3 class="text-xl font-semibold mb-3 text-black dark:text-white">Zero-Knowledge Proofs</h3>
+                    <p class="text-gray-600 dark:text-gray-400 text-sm leading-relaxed">Your identity is hashed instantly. We verify that you are eligible to vote without ever storing or knowing who you actually are.</p>
+                </div>
+
+                <div class="bg-white/80 dark:bg-white/5 glass-panel p-8 rounded-[2.5rem] border border-gray-200/60 dark:border-white/5 shadow-sm">
+                    <div class="w-12 h-12 bg-blue-50 dark:bg-blue-900/30 rounded-2xl flex items-center justify-center mb-6 shadow-sm border border-blue-100 dark:border-transparent">
+                        <svg class="w-6 h-6 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+                    </div>
+                    <h3 class="text-xl font-semibold mb-3 text-black dark:text-white">Immutable Ledger</h3>
+                    <p class="text-gray-600 dark:text-gray-400 text-sm leading-relaxed">Every vote is mathematically chained to the previous one using SHA-256. If a single vote is altered, the entire chain instantly breaks.</p>
+                </div>
+
+                <div class="bg-white/80 dark:bg-white/5 glass-panel p-8 rounded-[2.5rem] border border-gray-200/60 dark:border-white/5 shadow-sm">
+                    <div class="w-12 h-12 bg-red-50 dark:bg-red-900/30 rounded-2xl flex items-center justify-center mb-6 shadow-sm border border-red-100 dark:border-transparent">
+                        <svg class="w-6 h-6 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
+                    </div>
+                    <h3 class="text-xl font-semibold mb-3 text-black dark:text-white">Active Threat SOC</h3>
+                    <p class="text-gray-600 dark:text-gray-400 text-sm leading-relaxed">A live Security Operations Center (SOC) dashboard that monitors, logs, and blocks duplicate voting attempts and network anomalies in real-time.</p>
+                </div>
             </div>
         </div>
-        {% endfor %}
-    </div>
-</section>
-{% endif %}
+    </section>
 
-{% if not active_elections and not upcoming_elections and not ended_elections %}
-<div class="empty-state">
-    <p>No elections yet. Check back soon or ask an admin to create one.</p>
-</div>
-{% endif %}
-{% endblock %}
+    <section class="py-32 relative z-10 overflow-hidden">
+        <div class="max-w-6xl mx-auto px-6 reveal-hidden">
+            
+            <div class="text-center mb-20">
+                <h2 class="text-4xl md:text-6xl font-bold tracking-tighter mb-4 text-transparent bg-clip-text bg-gradient-to-br from-black to-gray-500 dark:from-white dark:to-gray-500">The Protocol.</h2>
+                <p class="text-lg md:text-xl text-gray-600 dark:text-gray-400 font-medium max-w-2xl mx-auto">Three steps. Zero knowledge. Absolute security.</p>
+            </div>
+            
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 relative">
+                
+                <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[90%] h-[60%] bg-gradient-to-r from-blue-500/10 via-purple-500/10 to-emerald-500/10 blur-[80px] -z-10 rounded-full dark:opacity-50"></div>
+
+                <div class="glass-panel bg-white/70 dark:bg-white/5 border border-gray-200/60 dark:border-white/10 p-10 rounded-[2.5rem] relative overflow-hidden group hover:-translate-y-2 transition-transform duration-500 shadow-md">
+                    <div class="absolute -right-2 -top-10 text-[180px] font-black text-black/[0.04] dark:text-white/[0.02] select-none pointer-events-none group-hover:scale-110 transition-transform duration-700">1</div>
+                    <div class="w-14 h-14 bg-white dark:bg-black/50 shadow-sm rounded-2xl flex items-center justify-center mb-8 border border-gray-200/80 dark:border-white/10 relative z-10 group-hover:scale-110 transition-transform duration-500">
+                        <svg class="w-6 h-6 text-black dark:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 11c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09A13.916 13.916 0 008 11a4 4 0 118 0c0 1.017-.07 2.019-.203 3m-2.118 6.844A21.88 21.88 0 0015.171 17m3.839 1.132c.645-2.266.99-4.659.99-7.132A8 8 0 008 4.07M3 15.364c.64-1.319 1-2.8 1-4.364 0-1.457.39-2.823 1.07-4"></path></svg>
+                    </div>
+                    <h3 class="text-2xl font-bold mb-3 tracking-tight relative z-10 text-black dark:text-white">Authenticate</h3>
+                    <p class="text-gray-600 dark:text-gray-400 font-medium leading-relaxed relative z-10">Enter your Aadhaar or Roll ID. It is hashed client-side immediately. We never store your raw identity on our servers.</p>
+                </div>
+
+                <div class="glass-panel bg-white/80 dark:bg-white/[0.07] border border-gray-200/60 dark:border-white/10 p-10 rounded-[2.5rem] relative overflow-hidden group hover:-translate-y-2 transition-transform duration-500 shadow-md md:mt-12">
+                    <div class="absolute -right-2 -top-10 text-[180px] font-black text-black/[0.04] dark:text-white/[0.02] select-none pointer-events-none group-hover:scale-110 transition-transform duration-700">2</div>
+                    <div class="w-14 h-14 bg-blue-500 shadow-lg shadow-blue-500/30 rounded-2xl flex items-center justify-center mb-8 relative z-10 group-hover:scale-110 transition-transform duration-500">
+                        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+                    </div>
+                    <h3 class="text-2xl font-bold mb-3 tracking-tight relative z-10 text-black dark:text-white">Encrypt</h3>
+                    <p class="text-gray-600 dark:text-gray-400 font-medium leading-relaxed relative z-10">Select your candidate. The payload is instantly secured using military-grade AES-256 encryption before it ever leaves your device.</p>
+                </div>
+
+                <div class="glass-panel bg-white/70 dark:bg-white/5 border border-gray-200/60 dark:border-white/10 p-10 rounded-[2.5rem] relative overflow-hidden group hover:-translate-y-2 transition-transform duration-500 shadow-md md:mt-24">
+                    <div class="absolute -right-2 -top-10 text-[180px] font-black text-black/[0.04] dark:text-white/[0.02] select-none pointer-events-none group-hover:scale-110 transition-transform duration-700">3</div>
+                    <div class="w-14 h-14 bg-emerald-500 shadow-lg shadow-emerald-500/30 rounded-2xl flex items-center justify-center mb-8 relative z-10 group-hover:scale-110 transition-transform duration-500">
+                        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+                    </div>
+                    <h3 class="text-2xl font-bold mb-3 tracking-tight relative z-10 text-black dark:text-white">Mine & Verify</h3>
+                    <p class="text-gray-600 dark:text-gray-400 font-medium leading-relaxed relative z-10">The vote is committed to the blockchain. You receive a verifiable cryptographic receipt to ensure your vote was counted.</p>
+                </div>
+
+            </div>
+        </div>
+    </section>
+
+    <footer class="border-t border-gray-200/60 dark:border-white/5 bg-white/70 dark:bg-black/20 backdrop-blur-md relative z-10">
+        <div class="max-w-6xl mx-auto px-6 py-12 flex flex-col md:flex-row justify-between items-center gap-6">
+            <div class="flex items-center space-x-2">
+                <div class="w-5 h-5 rounded-full bg-black dark:bg-white flex items-center justify-center">
+                    <span class="text-white dark:text-black font-bold text-[10px]">C</span>
+                </div>
+                <span class="font-semibold tracking-tight text-sm text-black dark:text-white">ChainVote</span>
+            </div>
+            
+            <p class="text-xs text-gray-500 dark:text-gray-500 font-medium">
+                Built for the Hackathon • Cybersecurity & Blockchain Track
+            </p>
+            
+            <div class="flex space-x-4 text-xs font-semibold">
+                <a href="{% url 'threat_dashboard' %}" class="text-gray-600 hover:text-black dark:text-gray-500 dark:hover:text-white transition">Admin Panel</a>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // Theme Toggle Logic
+        const themeToggleBtn = document.getElementById('theme-toggle');
+        const darkIcon = document.getElementById('theme-toggle-dark-icon');
+        const lightIcon = document.getElementById('theme-toggle-light-icon');
+
+        if (document.documentElement.classList.contains('dark')) { lightIcon.classList.remove('hidden'); } 
+        else { darkIcon.classList.remove('hidden'); }
+
+        themeToggleBtn.addEventListener('click', function() {
+            darkIcon.classList.toggle('hidden'); lightIcon.classList.toggle('hidden');
+            if (document.documentElement.classList.contains('dark')) {
+                document.documentElement.classList.remove('dark');
+                localStorage.setItem('color-theme', 'light');
+            } else {
+                document.documentElement.classList.add('dark');
+                localStorage.setItem('color-theme', 'dark');
+            }
+        });
+
+        // Elegant Scroll Reveal & Number Counter
+        document.addEventListener("DOMContentLoaded", () => {
+            const observer = new IntersectionObserver((entries) => {
+                entries.forEach((entry, index) => {
+                    if (entry.isIntersecting) {
+                        setTimeout(() => { entry.target.classList.add('reveal-visible'); }, index * 100);
+                        observer.unobserve(entry.target);
+                    }
+                });
+            }, { threshold: 0.1 });
+            
+            document.querySelectorAll('.reveal-hidden').forEach(el => observer.observe(el));
+
+            // Numbers counting up animation
+            const counters = document.querySelectorAll('.counter');
+            counters.forEach(counter => {
+                const target = +counter.getAttribute('data-target');
+                const increment = target / (1500 / 16); 
+                let current = 0;
+                const updateCounter = () => {
+                    current += increment;
+                    if (current < target) { counter.innerText = Math.ceil(current); requestAnimationFrame(updateCounter); } 
+                    else { counter.innerText = target; }
+                };
+                if(target > 0) updateCounter();
+            });
+        });
+    </script>
+</body>
+</html>

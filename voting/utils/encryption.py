@@ -1,9 +1,10 @@
+
 from cryptography.fernet import Fernet
 import base64
 import os
 
 # Use fixed key (store in env in production)
-SECRET_KEY = b'c3VwZXItc2VjcmV0LWtleS1jaGFpbnZvdGU='  # base64 key
+SECRET_KEY = b'b9VDVWUOr3QA_93Ax1-hQe04CN2Tj5oGpshMtlAxqcA='  # base64 key
 
 cipher = Fernet(SECRET_KEY)
 

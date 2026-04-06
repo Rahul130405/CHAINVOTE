@@ -10,7 +10,7 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 from rest_framework import status
 
-from .models import Election, Candidate, Vote
+from .models import Election, Candidate, Vote, SecurityLog
 from .serializers import ElectionSerializer, ElectionListSerializer, VoteSerializer
 import hashlib
 from .utils.encryption import encrypt_vote, decrypt_vote
@@ -22,27 +22,28 @@ from .utils.blockchain import verify_election_blockchain
 # ─────────────────────────────────────────────
 
 def home(request):
-    """Landing page — list all elections with their status."""
+    """Landing page — Command Center with stats and elections."""
     elections = Election.objects.prefetch_related('candidates', 'votes').all()
 
     active = [e for e in elections if e.status == 'active']
     upcoming = [e for e in elections if e.status == 'upcoming']
     ended = [e for e in elections if e.status == 'ended']
 
-    voted_election_ids = set()
-    # If you want to track which ones the logged-in user voted in, you can add that logic here.
+    # Grab global stats for the Command Center UI
+    total_blocks = Vote.objects.count()
+    latest_threat = SecurityLog.objects.first() if hasattr(SecurityLog, 'objects') else None
 
     return render(request, 'voting/home.html', {
         'active_elections': active,
         'upcoming_elections': upcoming,
         'ended_elections': ended,
-        'voted_election_ids': voted_election_ids,
+        'total_blocks': total_blocks,
+        'latest_threat': latest_threat,
     })
-
 
 @login_required
 def election_detail(request, election_id):
-    """Single election page with voting form."""
+    """Single election page with secure voting form."""
     election = get_object_or_404(Election, id=election_id)
     candidates = election.candidates.all()
     user_vote = None
@@ -53,14 +54,13 @@ def election_detail(request, election_id):
         'user_vote': user_vote,
     })
 
-
 def hash_identity(identity):
     return hashlib.sha256(identity.encode()).hexdigest()
 
 
 @login_required
 def cast_vote(request, election_id):
-    """Handle vote form submission from the frontend."""
+    """Handle vote form submission and log threats."""
     if request.method != "POST":
         return redirect('election_detail', election_id=election_id)
 
@@ -71,6 +71,11 @@ def cast_vote(request, election_id):
         messages.error(request, f"This election is {election.status}. Voting is not allowed.")
         return redirect('election_detail', election_id=election_id)
 
+    # 🌐 Get IP Address FIRST so we can log threats
+    ip = request.META.get('HTTP_X_FORWARDED_FOR', request.META.get('REMOTE_ADDR', ''))
+    if ',' in ip:
+        ip = ip.split(',')[0].strip()
+
     # 🧾 Get ID (Aadhaar/College ID)
     identity = request.POST.get("aadhaar")
     if not identity:
@@ -80,9 +85,15 @@ def cast_vote(request, election_id):
     # 🔐 Hash identity
     voter_hash = hash_identity(identity)
 
-    # 🚫 Prevent duplicate voting
+    # 🚨 SOC SECURITY TRIGGER: Prevent duplicate voting & LOG THE THREAT
     if Vote.objects.filter(election=election, voter_hash=voter_hash).exists():
-        messages.error(request, "You have already voted with this ID")
+        SecurityLog.objects.create(
+            level='CRITICAL',
+            action='Duplicate Vote Blocked',
+            ip_address=ip,
+            details=f"Voter hash {voter_hash[:15]}... attempted to bypass the ledger in '{election.title}'."
+        )
+        messages.error(request, "SECURITY ALERT: You have already voted with this ID. This attempt has been logged.")
         return redirect('election_detail', election_id=election_id)
 
     # 🗳 Get candidate
@@ -93,16 +104,11 @@ def cast_vote(request, election_id):
 
     candidate = get_object_or_404(Candidate, id=candidate_id, election=election)
 
-    # 🌐 Get IP
-    ip = request.META.get('HTTP_X_FORWARDED_FOR', request.META.get('REMOTE_ADDR', ''))
-    if ',' in ip:
-        ip = ip.split(',')[0].strip()
-
     # 🔐 Encrypt vote
     encrypted = encrypt_vote(candidate.id)
 
-    # 💾 Save vote - The Vote model's save() method automatically handles the Blockchain math!
-    Vote.objects.create(
+    # 💾 Save vote
+    new_vote = Vote.objects.create(
         election=election,
         encrypted_vote=encrypted,
         voter_hash=voter_hash,
@@ -111,7 +117,6 @@ def cast_vote(request, election_id):
 
     messages.success(request, "Your vote has been securely recorded on the blockchain!")
     return redirect('election_detail', election_id=election_id)
-
 
 def results_view(request, election_id):
     """Show election results (Only if ended and blockchain is valid)."""
@@ -319,4 +324,16 @@ def api_results(request, election_id):
         "blockchain_status": "Secure",
         "total_votes": election.total_votes,
         "results": results
+    })
+
+
+@login_required
+def threat_dashboard(request):
+    """SOC Admin view to monitor active threats."""
+    logs = SecurityLog.objects.all()[:50] # Show latest 50 threats
+    critical_count = SecurityLog.objects.filter(level='CRITICAL').count()
+    
+    return render(request, 'voting/threat_dashboard.html', {
+        'logs': logs,
+        'critical_count': critical_count
     })
