@@ -1,15 +1,11 @@
 import hashlib
+import json
 from django.db import models
 from django.contrib.auth.models import User
 from django.utils import timezone
-
+from django.db import transaction
 
 class Election(models.Model):
-    """
-    Represents a single election event.
-    Status is derived from start_time and end_time — no separate field needed.
-    This keeps logic clean and avoids stale state bugs.
-    """
     STATUS_UPCOMING = 'upcoming'
     STATUS_ACTIVE = 'active'
     STATUS_ENDED = 'ended'
@@ -46,11 +42,6 @@ class Election(models.Model):
 
 
 class Candidate(models.Model):
-    """
-    A candidate belongs to exactly one election.
-    Using ForeignKey with related_name='candidates' allows
-    easy access: election.candidates.all()
-    """
     election = models.ForeignKey(
         Election,
         on_delete=models.CASCADE,
@@ -67,30 +58,54 @@ class Candidate(models.Model):
     def __str__(self):
         return f"{self.name} ({self.election.title})"
 
-    @property
-    def vote_count(self):
-        return self.votes.count()
-
-    @property
-    def vote_percentage(self):
-        total = self.election.total_votes
-        if total == 0:
-            return 0
-        return round((self.vote_count / total) * 100, 1)
-
 
 class Vote(models.Model):
     election = models.ForeignKey(Election, on_delete=models.CASCADE, related_name='votes')
-
     encrypted_vote = models.CharField(max_length=255)
-
     voter_hash = models.CharField(max_length=64)
-
     voter_ip = models.GenericIPAddressField(null=True, blank=True)
     voted_at = models.DateTimeField(auto_now_add=True)
+
+    # 🔗 BLOCKCHAIN FIELDS
+    previous_hash = models.CharField(max_length=64, default="0"*64)
+    block_hash = models.CharField(max_length=64, blank=True)
 
     class Meta:
         unique_together = ['election', 'voter_hash']
 
     def __str__(self):
         return f"Encrypted vote in {self.election.title}"
+
+    def short_hash(self):
+        return self.block_hash[:10] + "..." if self.block_hash else "Pending..."
+
+    def generate_hash(self):
+        """Creates a SHA-256 hash of the vote's data PLUS the previous vote's hash."""
+        vote_data = {
+            "election_id": self.election.id,
+            "encrypted_vote": self.encrypted_vote,
+            "voter_hash": self.voter_hash,
+            "previous_hash": self.previous_hash
+        }
+        block_string = json.dumps(vote_data, sort_keys=True).encode()
+        return hashlib.sha256(block_string).hexdigest()
+
+    # 🛡️ THE BULLETPROOF FIX: Override the save method
+    def save(self, *args, **kwargs):
+        # Only run this logic if it's a BRAND NEW vote being created
+        if not self.pk: 
+            with transaction.atomic():
+                # 1. Find the last vote in this specific election to link to
+                last_vote = Vote.objects.filter(election=self.election).select_for_update().order_by('-id').first()
+                
+                # 2. Set the previous hash
+                if last_vote and last_vote.block_hash:
+                    self.previous_hash = last_vote.block_hash
+                else:
+                    self.previous_hash = "0" * 64
+                
+                # 3. Generate this block's hash
+                self.block_hash = self.generate_hash()
+                
+        # Actually save it to the database
+        super(Vote, self).save(*args, **kwargs)
