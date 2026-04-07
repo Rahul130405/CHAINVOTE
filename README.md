@@ -66,6 +66,25 @@ CHAINVOTE/
 └── manage.py               # System Entry Point
 ```
 
+## 📸 Screenshots
+
+<div align="center">
+  <img src="Screenshot 2026-04-07 190219.png" width="800" alt="Dashboard View">
+  <p><i>System Overview and Dashboard</i></p>
+  <br>
+  <img src="Screenshot 2026-04-07 190243.png" width="800" alt="Login Page">
+  <p><i>Secure Authentication Interface</i></p>
+  <br>
+  <img src="Screenshot 2026-04-07 190305.png" width="800" alt="Voting Booth">
+  <p><i>Encrypted Digital Voting Booth</i></p>
+  <br>
+  <img src="Screenshot 2026-04-07 190317.png" width="800" alt="Blockchain Explorer">
+  <p><i>Live Immutable Ledger Explorer</i></p>
+  <br>
+  <img src="Screenshot 2026-04-07 190431.png" width="800" alt="Results Page">
+  <p><i>Transparent Election Results</i></p>
+</div>
+
 ---
 
 ## ⚙️ Tech Stack
