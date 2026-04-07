@@ -165,14 +165,12 @@ This project is developed as an MVP for a hackathon. While it utilizes industry-
 
 ---
 
-## 👨‍💻 Author
+## 👨‍💻 Author  
 
-## 👨‍💻 Author
+**Rahul Raj Jaiswal**  
+*Cybersecurity & Blockchain Enthusiast | Full-Stack Developer*  
 
-**Rahul Raj Jaiswal**
-*Cybersecurity & Blockchain Enthusiast*
-
-🔗 LinkedIn: https://www.linkedin.com/in/rahulrajjaiswal/
+🔗 [LinkedIn](https://www.linkedin.com/in/rahulrajjaiswal/)  
 
 
 ---
