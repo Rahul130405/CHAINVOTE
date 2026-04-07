@@ -169,7 +169,7 @@ This project is developed as an MVP for a hackathon. While it utilizes industry-
 
 **Your Name**  
 *Cybersecurity & Blockchain Enthusiast*  
-[GitHub](https://github.com/your-username) | [LinkedIn](https://linkedin.com/in/your-profile)
+ | [LinkedIn]([https://linkedin.com/in/your-profile](https://www.linkedin.com/in/rahulrajjaiswal/))
 
 ---
 
