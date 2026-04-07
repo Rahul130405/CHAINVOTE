@@ -167,9 +167,13 @@ This project is developed as an MVP for a hackathon. While it utilizes industry-
 
 ## 👨‍💻 Author
 
-**Your Name**  
-*Cybersecurity & Blockchain Enthusiast*  
- | [LinkedIn]([https://linkedin.com/in/your-profile](https://www.linkedin.com/in/rahulrajjaiswal/))
+## 👨‍💻 Author
+
+**Rahul Raj Jaiswal**
+*Cybersecurity & Blockchain Enthusiast*
+
+🔗 LinkedIn: https://www.linkedin.com/in/rahulrajjaiswal/
+
 
 ---
 
