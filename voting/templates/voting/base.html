@@ -5,8 +5,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}ChainVote{% endblock %}</title>
-    <link rel="icon" type="image/png" href="{% static 'voting/images/favicon.png' %}">
-    <link rel="shortcut icon" href="{% static 'voting/images/favicon.ico' %}">
+    <link rel="icon" href="{% static 'favicon.ico' %}?v=2" sizes="any">
+    <link rel="icon" type="image/png" href="{% static 'images/favicon.png' %}?v=2">
+    <link rel="apple-touch-icon" href="{% static 'images/favicon.png' %}?v=2">
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -99,7 +100,7 @@
     <nav class="fixed top-0 w-full z-50 glass-panel bg-white/70 dark:bg-black/50 border-b border-gray-200/50 dark:border-white/5">
         <div class="max-w-6xl mx-auto px-6 py-4 flex justify-between items-center">
             <a href="{% url 'home' %}" class="flex items-center space-x-2">
-                <img src="{% static 'voting/images/favicon.png' %}" alt="ChainVote Logo" class="w-8 h-8 rounded-full">
+                <img src="{% static 'images/favicon.png' %}" alt="ChainVote Logo" class="w-8 h-8 rounded-full">
                 <span class="text-lg font-semibold tracking-tight text-black dark:text-white">ChainVote</span>
             </a>
             
