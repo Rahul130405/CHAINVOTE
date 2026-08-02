@@ -171,9 +171,6 @@ This project is developed as an MVP for a hackathon. While it utilizes industry-
 *Cybersecurity & Blockchain Enthusiast | Full-Stack Developer*  
 
 🔗 [LinkedIn](https://www.linkedin.com/in/rahulrajjaiswal/)  
-
-
-  hello world
 ---
 
 ### **🏆 One Vote. One Chain. Total Trust.**
