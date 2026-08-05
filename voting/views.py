@@ -23,11 +23,13 @@ from .utils.blockchain import verify_election_blockchain
 
 def home(request):
     """Landing page — Command Center with stats and elections."""
+    now = timezone.now()
     elections = Election.objects.prefetch_related('candidates', 'votes').all()
 
-    active = [e for e in elections if e.status == 'active']
-    upcoming = [e for e in elections if e.status == 'upcoming']
-    ended = [e for e in elections if e.status == 'ended']
+    # Use robust queryset filtering to ensure consistency with the API
+    active = elections.filter(start_time__lte=now, end_time__gte=now)
+    upcoming = elections.filter(start_time__gt=now)
+    ended = elections.filter(end_time__lt=now)
 
     # Grab global stats for the Command Center UI
     total_blocks = Vote.objects.count()
