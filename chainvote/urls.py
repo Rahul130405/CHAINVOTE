@@ -7,5 +7,5 @@ from django.conf.urls.static import static
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('', include('voting.urls')),
-    path('favicon.ico', RedirectView.as_view(url=settings.STATIC_URL + 'voting/images/favicon.ico')),
+    path('favicon.ico', RedirectView.as_view(url=settings.STATIC_URL + 'voting/images/chainvote-logo.png')),
 ]
