@@ -18,6 +18,7 @@ import hmac
 from .utils.encryption import encrypt_vote, decrypt_vote
 from .utils.blockchain import verify_election_blockchain
 from .utils.data_push import execute_automatic_data_push
+from .utils.candidate_automation import execute_candidate_automation, ensure_initial_election_data
 
 
 # ─────────────────────────────────────────────
@@ -29,10 +30,15 @@ def home(request):
     now = timezone.now()
     elections = Election.objects.prefetch_related('candidates', 'votes').all()
 
-    # Use robust queryset filtering to ensure consistency with the API
-    active = elections.filter(start_time__lte=now, end_time__gte=now)
-    upcoming = elections.filter(start_time__gt=now)
-    ended = elections.filter(end_time__lt=now)
+    # Ensure active user election exists with demo candidates
+    active = elections.filter(start_time__lte=now, end_time__gte=now).exclude(title='ChainVote Network Audit & Protocol Ledger')
+    if not active.exists():
+        ensure_initial_election_data()
+        elections = Election.objects.prefetch_related('candidates', 'votes').all()
+        active = elections.filter(start_time__lte=now, end_time__gte=now).exclude(title='ChainVote Network Audit & Protocol Ledger')
+
+    upcoming = elections.filter(start_time__gt=now).exclude(title='ChainVote Network Audit & Protocol Ledger')
+    ended = elections.filter(end_time__lt=now).exclude(title='ChainVote Network Audit & Protocol Ledger')
 
     # Grab global stats for the Command Center UI
     total_blocks = Vote.objects.count()
@@ -387,4 +393,45 @@ def api_internal_automatic_data_push(request):
 
     result = execute_automatic_data_push(force=force)
     http_status = status.HTTP_200_OK if result.get('status') in ('success', 'skipped') else status.HTTP_500_INTERNAL_SERVER_ERROR
-    return Response(result, status=http_status)
+    return Response(result, status=http_status)
+
+
+@api_view(['GET', 'POST'])
+@permission_classes([AllowAny])
+def api_cron_add_candidate(request):
+    """
+    Secure backend endpoint to automatically generate a new candidate every 6 days.
+    Triggered daily via Vercel Cron.
+    Protected by CRON_SECRET environment variable.
+    """
+    expected_secret = os.environ.get('CRON_SECRET')
+    if not expected_secret:
+        return Response(
+            {'error': 'Unauthorized: Server CRON_SECRET is not configured.'},
+            status=status.HTTP_401_UNAUTHORIZED
+        )
+
+    auth_header = request.headers.get('Authorization', '')
+    token = ''
+    if auth_header.startswith('Bearer '):
+        token = auth_header[7:].strip()
+    elif 'X-Cron-Secret' in request.headers:
+        token = request.headers.get('X-Cron-Secret', '').strip()
+    elif 'secret' in request.GET:
+        token = request.GET.get('secret', '').strip()
+
+    if not token or not hmac.compare_digest(token, expected_secret):
+        return Response(
+            {'error': 'Unauthorized: Invalid or missing CRON_SECRET.'},
+            status=status.HTTP_401_UNAUTHORIZED
+        )
+
+    force = (
+        request.GET.get('force', '').lower() in ('true', '1') or
+        (isinstance(request.data, dict) and request.data.get('force') in (True, 'true', '1'))
+    )
+
+    result = execute_candidate_automation(force=force)
+    http_status = status.HTTP_200_OK if result.get('status') in ('success', 'skipped') else status.HTTP_500_INTERNAL_SERVER_ERROR
+    return Response(result, status=http_status)
+

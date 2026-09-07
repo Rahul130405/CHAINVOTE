@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Election, Candidate, Vote, SecurityLog, ScheduledDataPush
+from .models import Election, Candidate, Vote, SecurityLog, ScheduledDataPush, CandidateAutomationState
 from .utils.encryption import decrypt_vote  # Assuming you have this function
 
 
@@ -132,4 +132,30 @@ class ScheduledDataPushAdmin(admin.ModelAdmin):
         return False
 
     def has_delete_permission(self, request, obj=None):
-        return False
+        return False
+
+
+@admin.register(CandidateAutomationState)
+class CandidateAutomationStateAdmin(admin.ModelAdmin):
+    list_display = ['election', 'candidate_name', 'last_generated_at', 'next_eligible_display']
+    list_filter = ['election', 'last_generated_at']
+    search_fields = ['election__title', 'candidate__name', 'details']
+    readonly_fields = ['election', 'candidate', 'last_generated_at', 'details', 'created_at']
+
+    def candidate_name(self, obj):
+        return obj.candidate.name if obj.candidate else "None"
+    candidate_name.short_description = "Generated Candidate"
+
+    def next_eligible_display(self, obj):
+        return obj.next_eligible_at.strftime('%Y-%m-%d %H:%M:%S') if obj.next_eligible_at else 'N/A'
+    next_eligible_display.short_description = "Next Addition Eligible"
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+

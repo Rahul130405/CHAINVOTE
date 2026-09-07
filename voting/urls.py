@@ -19,4 +19,5 @@ urlpatterns = [
     path('api/elections/<int:election_id>/results/', views.api_results, name='api_results'),
     # ── Internal Scheduled Tasks ─────────────────────
     path('api/internal/automatic-data-push/', views.api_internal_automatic_data_push, name='api_internal_automatic_data_push'),
+    path('api/cron/add-candidate/', views.api_cron_add_candidate, name='api_cron_add_candidate'),
 ]

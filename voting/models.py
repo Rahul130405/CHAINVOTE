@@ -162,4 +162,27 @@ class ScheduledDataPush(models.Model):
         from datetime import timedelta
         if self.status == self.STATUS_SUCCESS and self.executed_at:
             return self.executed_at + timedelta(hours=96)
-        return None
+        return None
+
+
+class CandidateAutomationState(models.Model):
+    election = models.ForeignKey(Election, on_delete=models.CASCADE, related_name='candidate_automations')
+    candidate = models.ForeignKey(Candidate, on_delete=models.SET_NULL, null=True, blank=True)
+    last_generated_at = models.DateTimeField(default=timezone.now)
+    details = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-last_generated_at']
+        verbose_name = 'Candidate Automation Log'
+        verbose_name_plural = 'Candidate Automation Logs'
+
+    def __str__(self):
+        c_name = self.candidate.name if self.candidate else "Unknown"
+        return f"Added {c_name} for {self.election.title} at {self.last_generated_at.strftime('%Y-%m-%d %H:%M:%S')}"
+
+    @property
+    def next_eligible_at(self):
+        from datetime import timedelta
+        return self.last_generated_at + timedelta(days=6)
+

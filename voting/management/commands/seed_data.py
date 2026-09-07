@@ -27,6 +27,22 @@ class Command(BaseCommand):
             User.objects.create_user('voter1', password='voter123')
             self.stdout.write(self.style.SUCCESS('✅ Test user created: voter1 / voter123'))
 
+        # ── Active Election: 2026 National Election ───────────────────
+        e0, _ = Election.objects.get_or_create(
+            title='2026 National Election',
+            defaults={
+                'description': 'National Digital Democracy Election powered by cryptographic ledgers.',
+                'start_time': now - timedelta(days=1),
+                'end_time': now + timedelta(days=60),
+            }
+        )
+        for name, desc in [
+            ('Aarav Sharma', 'Digital India Party'),
+            ('Priya Verma', 'National Reform Alliance'),
+            ('Rohan Mehta', "People's Development Front"),
+        ]:
+            Candidate.objects.get_or_create(election=e0, name=name, defaults={'description': desc})
+
         # ── Active Election ──────────────────────────
         e1, _ = Election.objects.get_or_create(
             title='Best Programming Language 2025',

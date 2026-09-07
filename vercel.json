@@ -20,6 +20,10 @@
     {
       "path": "/api/internal/automatic-data-push/",
       "schedule": "0 0 * * *"
+    },
+    {
+      "path": "/api/cron/add-candidate/",
+      "schedule": "0 0 * * *"
     }
   ]
 }
