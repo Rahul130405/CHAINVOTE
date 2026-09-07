@@ -8,7 +8,17 @@
   ],
   "routes": [
     {
+      "src": "/favicon.ico",
+      "headers": {
+        "cache-control": "public, max-age=86400, stale-while-revalidate=86400"
+      },
+      "dest": "/staticfiles/images/favicon.png"
+    },
+    {
       "src": "/static/(.*)",
+      "headers": {
+        "cache-control": "public, max-age=31536000, immutable"
+      },
       "dest": "/staticfiles/$1"
     },
     {

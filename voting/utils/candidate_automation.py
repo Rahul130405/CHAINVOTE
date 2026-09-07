@@ -3,6 +3,7 @@ import random
 from datetime import timedelta
 from django.db import transaction
 from django.utils import timezone
+from django.core.cache import cache
 
 from voting.models import Election, Candidate, CandidateAutomationState
 
@@ -197,6 +198,7 @@ def execute_candidate_automation(force=False):
                 details=f"Automated candidate generated: {name} ({party})"
             )
 
+        cache.delete('home_landing_context')
         logger.info(f"Successfully created candidate '{new_candidate.name}' for election '{election.title}'.")
         return {
             "status": "success",

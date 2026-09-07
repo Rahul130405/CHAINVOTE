@@ -10,6 +10,9 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 from rest_framework import status
 
+from django.db.models import Count
+from django.core.cache import cache
+
 from .models import Election, Candidate, Vote, SecurityLog, ScheduledDataPush
 from .serializers import ElectionSerializer, ElectionListSerializer, VoteSerializer
 import hashlib
@@ -26,36 +29,59 @@ from .utils.candidate_automation import execute_candidate_automation, ensure_ini
 # ─────────────────────────────────────────────
 
 def home(request):
-    """Landing page — Command Center with stats and elections."""
-    now = timezone.now()
-    elections = Election.objects.prefetch_related('candidates', 'votes').all()
+    """Landing page — Command Center with stats and elections (Optimized queries & caching)."""
+    cache_key = 'home_landing_context'
+    context = cache.get(cache_key)
 
-    # Ensure active user election exists with demo candidates
-    active = elections.filter(start_time__lte=now, end_time__gte=now).exclude(title='ChainVote Network Audit & Protocol Ledger')
-    if not active.exists():
-        ensure_initial_election_data()
-        elections = Election.objects.prefetch_related('candidates', 'votes').all()
-        active = elections.filter(start_time__lte=now, end_time__gte=now).exclude(title='ChainVote Network Audit & Protocol Ledger')
+    if context is None:
+        now = timezone.now()
+        # Single DB query with Count annotation and prefetch_related for candidates only
+        elections = list(
+            Election.objects.exclude(title='ChainVote Network Audit & Protocol Ledger')
+            .annotate(total_votes_count=Count('votes'))
+            .prefetch_related('candidates')
+            .order_by('-start_time')
+        )
 
-    upcoming = elections.filter(start_time__gt=now).exclude(title='ChainVote Network Audit & Protocol Ledger')
-    ended = elections.filter(end_time__lt=now).exclude(title='ChainVote Network Audit & Protocol Ledger')
+        active = [e for e in elections if e.start_time <= now <= e.end_time]
+        if not active:
+            ensure_initial_election_data()
+            elections = list(
+                Election.objects.exclude(title='ChainVote Network Audit & Protocol Ledger')
+                .annotate(total_votes_count=Count('votes'))
+                .prefetch_related('candidates')
+                .order_by('-start_time')
+            )
+            active = [e for e in elections if e.start_time <= now <= e.end_time]
 
-    # Grab global stats for the Command Center UI
-    total_blocks = Vote.objects.count()
-    latest_threat = SecurityLog.objects.first() if hasattr(SecurityLog, 'objects') else None
+        upcoming = [e for e in elections if e.start_time > now]
+        ended = [e for e in elections if e.end_time < now]
 
-    return render(request, 'voting/home.html', {
-        'active_elections': active,
-        'upcoming_elections': upcoming,
-        'ended_elections': ended,
-        'total_blocks': total_blocks,
-        'latest_threat': latest_threat,
-    })
+        total_blocks = Vote.objects.count()
+        latest_threat = (
+            SecurityLog.objects.only('id', 'level', 'action', 'ip_address', 'details', 'timestamp').first()
+            if hasattr(SecurityLog, 'objects') else None
+        )
+
+        context = {
+            'active_elections': active,
+            'upcoming_elections': upcoming,
+            'ended_elections': ended,
+            'total_blocks': total_blocks,
+            'latest_threat': latest_threat,
+        }
+        # In-memory micro-cache: eliminates repeated DB round-trips on refreshes
+        cache.set(cache_key, context, timeout=20)
+
+    return render(request, 'voting/home.html', context)
 
 @login_required
 def election_detail(request, election_id):
-    """Single election page with secure voting form."""
-    election = get_object_or_404(Election, id=election_id)
+    """Single election page with secure voting form (Prefetches candidates)."""
+    election = get_object_or_404(
+        Election.objects.prefetch_related('candidates'),
+        id=election_id
+    )
     candidates = election.candidates.all()
     user_vote = None
 
@@ -126,12 +152,18 @@ def cast_vote(request, election_id):
         voter_ip=ip
     )
 
+    # Invalidate landing cache so stats update immediately
+    cache.delete('home_landing_context')
+
     messages.success(request, "Your vote has been securely recorded on the blockchain!")
     return redirect('election_detail', election_id=election_id)
 
 def results_view(request, election_id):
-    """Show election results (Only if ended and blockchain is valid)."""
-    election = get_object_or_404(Election, id=election_id)
+    """Show election results (Only if ended and blockchain is valid). Single-query vote fetch."""
+    election = get_object_or_404(
+        Election.objects.prefetch_related('candidates'),
+        id=election_id
+    )
 
     # 🚫 BLOCK RESULTS BEFORE END
     if election.status != 'ended':
@@ -141,8 +173,11 @@ def results_view(request, election_id):
             'message': "Results are locked until election ends"
         })
 
-    # 🔗 VERIFY BLOCKCHAIN BEFORE SHOWING RESULTS
-    is_valid, bc_message = verify_election_blockchain(election)
+    # Fetch votes in a single query
+    votes = list(Vote.objects.filter(election=election).order_by('id'))
+
+    # 🔗 VERIFY BLOCKCHAIN BEFORE SHOWING RESULTS (Reuses votes list, zero duplicate queries)
+    is_valid, bc_message = verify_election_blockchain(election, votes=votes)
     if not is_valid:
         return render(request, 'voting/results.html', {
             'election': election,
@@ -150,18 +185,15 @@ def results_view(request, election_id):
             'message': f"🚨 SECURITY ALERT: {bc_message} Results cannot be verified."
         })
 
-    votes = election.votes.all()
     vote_count = {}
-
     for vote in votes:
         try:
             candidate_id = decrypt_vote(vote.encrypted_vote)
-            # Ensure type matches depending on how decrypt_vote returns the ID
             vote_count[int(candidate_id)] = vote_count.get(int(candidate_id), 0) + 1
         except Exception:
             pass # Skip corrupted decryption
 
-    candidates = election.candidates.all()
+    candidates = list(election.candidates.all())
     for c in candidates:
         c.decrypted_votes = vote_count.get(c.id, 0)
 
@@ -176,8 +208,12 @@ def results_view(request, election_id):
 def blockchain_explorer(request, election_id):
     """Hackathon UI: Visualize the Live Blockchain."""
     election = get_object_or_404(Election, id=election_id)
-    # Get all votes in chronological order to visualize the chain
-    votes = Vote.objects.filter(election=election).order_by('id')
+    # Defer unneeded heavy fields and use index on (election, id)
+    votes = (
+        Vote.objects.filter(election=election)
+        .only('id', 'voted_at', 'previous_hash', 'encrypted_vote', 'voter_hash', 'block_hash')
+        .order_by('id')
+    )
     return render(request, 'voting/explorer.html', {'election': election, 'votes': votes})
 
 
@@ -231,8 +267,8 @@ def logout_view(request):
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def api_election_list(request):
-    """GET /api/elections/"""
-    elections = Election.objects.prefetch_related('candidates', 'votes').all()
+    """GET /api/elections/ (Single query with annotated total_votes, no unneeded prefetch)."""
+    elections = Election.objects.annotate(total_votes_count=Count('votes')).order_by('-start_time')
     serializer = ElectionListSerializer(elections, many=True)
     return Response(serializer.data)
 
@@ -241,7 +277,10 @@ def api_election_list(request):
 @permission_classes([AllowAny])
 def api_election_detail(request, election_id):
     """GET /api/elections/<id>/"""
-    election = get_object_or_404(Election, id=election_id)
+    election = get_object_or_404(
+        Election.objects.prefetch_related('candidates'),
+        id=election_id
+    )
     serializer = ElectionSerializer(election)
     return Response(serializer.data)
 
@@ -286,6 +325,9 @@ def api_cast_vote(request, election_id):
         voter_ip=ip
     )
 
+    # Invalidate landing cache
+    cache.delete('home_landing_context')
+
     return Response({
         'message': 'Vote cast securely on blockchain.',
         'block_hash': vote.block_hash,
@@ -296,23 +338,26 @@ def api_cast_vote(request, election_id):
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def api_results(request, election_id):
-    """GET /api/elections/<id>/results/"""
-    election = get_object_or_404(Election, id=election_id)
+    """GET /api/elections/<id>/results/ (Optimized single-query vote verification)."""
+    election = get_object_or_404(
+        Election.objects.prefetch_related('candidates'),
+        id=election_id
+    )
 
     if election.status != "ended":
         return Response({"message": "Results are locked until election ends"})
 
+    votes = list(Vote.objects.filter(election=election).order_by('id'))
+
     # 🔗 API BLOCKCHAIN VERIFICATION
-    is_valid, bc_message = verify_election_blockchain(election)
+    is_valid, bc_message = verify_election_blockchain(election, votes=votes)
     if not is_valid:
         return Response({
             "error": "Blockchain Verification Failed",
             "details": bc_message
         }, status=status.HTTP_409_CONFLICT)
 
-    votes = election.votes.all()
     vote_count = {}
-
     for vote in votes:
         try:
             candidate_id = decrypt_vote(vote.encrypted_vote)
@@ -333,7 +378,7 @@ def api_results(request, election_id):
     return Response({
         "election": election.title,
         "blockchain_status": "Secure",
-        "total_votes": election.total_votes,
+        "total_votes": len(votes),
         "results": results
     })
 
@@ -341,9 +386,9 @@ def api_results(request, election_id):
 @login_required
 def threat_dashboard(request):
     """SOC Admin view to monitor active threats."""
-    logs = SecurityLog.objects.all()[:50] # Show latest 50 threats
+    logs = SecurityLog.objects.only('id', 'level', 'action', 'ip_address', 'details', 'timestamp').all()[:50]
     critical_count = SecurityLog.objects.filter(level='CRITICAL').count()
-    
+
     return render(request, 'voting/threat_dashboard.html', {
         'logs': logs,
         'critical_count': critical_count

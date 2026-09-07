@@ -18,6 +18,10 @@ class Election(models.Model):
 
     class Meta:
         ordering = ['-start_time']
+        indexes = [
+            models.Index(fields=['start_time', 'end_time'], name='idx_election_active'),
+            models.Index(fields=['-start_time'], name='idx_election_start'),
+        ]
 
     def __str__(self):
         return self.title
@@ -38,6 +42,8 @@ class Election(models.Model):
 
     @property
     def total_votes(self):
+        if hasattr(self, 'total_votes_count'):
+            return self.total_votes_count
         return self.votes.count()
 
 
@@ -54,6 +60,9 @@ class Candidate(models.Model):
     class Meta:
         ordering = ['name']
         unique_together = ['election', 'name']  # No duplicate names per election
+        indexes = [
+            models.Index(fields=['election', 'name'], name='idx_candidate_election_name'),
+        ]
 
     def __str__(self):
         return f"{self.name} ({self.election.title})"
@@ -72,6 +81,11 @@ class Vote(models.Model):
 
     class Meta:
         unique_together = ['election', 'voter_hash']
+        indexes = [
+            models.Index(fields=['election', 'id'], name='idx_vote_election_id'),
+            models.Index(fields=['election', '-id'], name='idx_vote_election_latest'),
+            models.Index(fields=['voted_at'], name='idx_vote_voted_at'),
+        ]
 
     def __str__(self):
         return f"Encrypted vote in {self.election.title}"
@@ -124,6 +138,10 @@ class SecurityLog(models.Model):
 
     class Meta:
         ordering = ['-timestamp']
+        indexes = [
+            models.Index(fields=['-timestamp'], name='idx_seclog_timestamp'),
+            models.Index(fields=['level', '-timestamp'], name='idx_seclog_level_time'),
+        ]
 
     def __str__(self):
         return f"[{self.level}] {self.action} - {self.ip_address}"
@@ -153,6 +171,9 @@ class ScheduledDataPush(models.Model):
         ordering = ['-executed_at']
         verbose_name = 'Scheduled Data Push'
         verbose_name_plural = 'Scheduled Data Pushes'
+        indexes = [
+            models.Index(fields=['status', '-executed_at'], name='idx_datapush_status_time'),
+        ]
 
     def __str__(self):
         return f"[{self.status}] {self.push_type} - {self.executed_at.strftime('%Y-%m-%d %H:%M:%S')}"
@@ -176,6 +197,9 @@ class CandidateAutomationState(models.Model):
         ordering = ['-last_generated_at']
         verbose_name = 'Candidate Automation Log'
         verbose_name_plural = 'Candidate Automation Logs'
+        indexes = [
+            models.Index(fields=['election', '-last_generated_at'], name='idx_candauto_elec_time'),
+        ]
 
     def __str__(self):
         c_name = self.candidate.name if self.candidate else "Unknown"

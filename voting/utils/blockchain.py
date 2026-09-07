@@ -1,13 +1,15 @@
 from voting.models import Vote
 
-def verify_election_blockchain(election):
+def verify_election_blockchain(election, votes=None):
     """
     Traverses the votes for an election to ensure the blockchain is intact.
     Returns True if safe, Returns False and the broken Vote ID if hacked.
     """
-    votes = Vote.objects.filter(election=election).order_by('id')
+    if votes is None:
+        votes = Vote.objects.filter(election=election).order_by('id')
     
-    if not votes.exists():
+    # Check if empty (works for querysets and lists)
+    if not votes or (hasattr(votes, 'exists') and not votes.exists()):
         return True, "No votes yet."
 
     previous_hash_check = "0" * 64

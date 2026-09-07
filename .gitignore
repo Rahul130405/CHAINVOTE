@@ -7,6 +7,5 @@ db.sqlite3
 .env
 .env.*
 .env.local
-staticfiles/
 *.log
 .vscode/

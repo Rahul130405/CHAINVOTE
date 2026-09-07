@@ -27,9 +27,12 @@
         }
     </script>
     
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="dns-prefetch" href="https://cdn.tailwindcss.com">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
+    
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
-        
         body { 
             transition: background-color 0.5s ease, color 0.5s ease; 
             overflow-x: hidden;
@@ -149,7 +152,7 @@
                             
                             {% if election.candidates.all %}
                             <div class="mb-5">
-                                <p class="text-xs font-bold uppercase tracking-wider text-gray-400 mb-2">Candidates ({{ election.candidates.count }})</p>
+                                <p class="text-xs font-bold uppercase tracking-wider text-gray-400 mb-2">Candidates ({{ election.candidates.all|length }})</p>
                                 <div class="flex flex-wrap gap-2">
                                     {% for candidate in election.candidates.all %}
                                     <span class="inline-flex items-center text-xs font-medium px-3 py-1.5 rounded-xl bg-white/70 dark:bg-white/10 text-gray-800 dark:text-gray-200 border border-gray-200/60 dark:border-white/10 shadow-sm">

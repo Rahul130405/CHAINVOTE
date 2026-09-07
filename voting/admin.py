@@ -32,6 +32,7 @@ class CandidateAdmin(admin.ModelAdmin):
     list_display = ['name', 'election', 'vote_count']
     list_filter = ['election']
     search_fields = ['name', 'election__title']
+    list_select_related = ['election']
 
     def vote_count(self, obj):
         # Count votes for this candidate by decrypting each vote
@@ -52,6 +53,7 @@ class VoteAdmin(admin.ModelAdmin):
     list_display = ['election', 'short_hash', 'voter_ip', 'voted_at']
     list_filter = ['election', 'voted_at']
     search_fields = ['voter_hash', 'block_hash']
+    list_select_related = ['election']
     
     # Expose the new blockchain fields to the admin, but make EVERYTHING read-only
     readonly_fields = [
@@ -140,6 +142,7 @@ class CandidateAutomationStateAdmin(admin.ModelAdmin):
     list_display = ['election', 'candidate_name', 'last_generated_at', 'next_eligible_display']
     list_filter = ['election', 'last_generated_at']
     search_fields = ['election__title', 'candidate__name', 'details']
+    list_select_related = ['election', 'candidate']
     readonly_fields = ['election', 'candidate', 'last_generated_at', 'details', 'created_at']
 
     def candidate_name(self, obj):
