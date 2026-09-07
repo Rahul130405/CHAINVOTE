@@ -15,5 +15,11 @@
       "src": "/(.*)",
       "dest": "chainvote/wsgi.py"
     }
+  ],
+  "crons": [
+    {
+      "path": "/api/internal/automatic-data-push/",
+      "schedule": "0 0 * * *"
+    }
   ]
 }

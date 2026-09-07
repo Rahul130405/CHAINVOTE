@@ -1,0 +1,45 @@
+name: Scheduled 4-Day Backend Data Push
+
+on:
+  schedule:
+    # Runs daily at 00:00 UTC. The Django backend checks if 96 hours (4 days) have passed.
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+    # Allows manual trigger from GitHub Actions tab
+    inputs:
+      force:
+        description: 'Force execution (bypass 96h check)'
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  trigger-push:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Automatic Data Push Endpoint
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          APP_URL: ${{ secrets.APP_URL || 'https://chainvote-rrj.vercel.app' }}
+          FORCE_PARAM: ${{ inputs.force && '&force=true' || '' }}
+        run: |
+          if [ -z "$CRON_SECRET" ]; then
+            echo "::error::CRON_SECRET secret is not configured in repository secrets."
+            exit 1
+          fi
+          echo "Sending scheduled request to ChainVote backend..."
+          RESPONSE=$(curl -s -w "\nHTTP_STATUS:%{http_code}" \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            "${APP_URL}/api/internal/automatic-data-push/?format=json${FORCE_PARAM}")
+          
+          HTTP_STATUS=$(echo "$RESPONSE" | tr -d '\r' | sed -e 's/.*HTTP_STATUS://')
+          BODY=$(echo "$RESPONSE" | sed -e 's/HTTP_STATUS:.*//')
+          
+          echo "Response Body: $BODY"
+          echo "HTTP Status: $HTTP_STATUS"
+          
+          if [ "$HTTP_STATUS" -ne 200 ]; then
+            echo "::error::Scheduled data push failed with HTTP status $HTTP_STATUS"
+            exit 1
+          fi
+          echo "Scheduled push task completed successfully."

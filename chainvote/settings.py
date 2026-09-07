@@ -9,9 +9,11 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-chainvote-dev-key-change-in-production-xyz123')
 
-DEBUG = os.environ.get('DEBUG', 'True') == 'True'
+# Security: DEBUG must be False on Vercel/production
+IS_VERCEL = 'VERCEL' in os.environ
+DEBUG = os.environ.get('DEBUG', 'False' if IS_VERCEL else 'True').lower() in ('true', '1')
 
-ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', '*').split(',')
+ALLOWED_HOSTS = [host.strip() for host in os.environ.get('ALLOWED_HOSTS', '*').split(',') if host.strip()]
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -59,10 +61,15 @@ WSGI_APPLICATION = 'chainvote.wsgi.application'
 DATABASES = {
     'default': dj_database_url.config(
         default='sqlite:///' + str(BASE_DIR / 'db.sqlite3'),
-        conn_max_age=600,
-        ssl_require=True
+        conn_max_age=0,
+        ssl_require=True,
     )
 }
+
+if DATABASES['default']['ENGINE'] == 'django.db.backends.postgresql':
+    DATABASES['default']['DISABLE_SERVER_SIDE_CURSORS'] = True
+else:
+    DATABASES['default'].get('OPTIONS', {}).pop('sslmode', None)
 
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},

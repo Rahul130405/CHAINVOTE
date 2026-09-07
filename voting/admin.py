@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Election, Candidate, Vote
+from .models import Election, Candidate, Vote, SecurityLog, ScheduledDataPush
 from .utils.encryption import decrypt_vote  # Assuming you have this function
 
 
@@ -76,3 +76,60 @@ class VoteAdmin(admin.ModelAdmin):
     def has_delete_permission(self, request, obj=None):
         """Prevent deleting votes (which would break the chain for subsequent votes)."""
         return False
+
+
+@admin.register(SecurityLog)
+class SecurityLogAdmin(admin.ModelAdmin):
+    list_display = ['level', 'action', 'ip_address', 'timestamp']
+    list_filter = ['level', 'timestamp']
+    search_fields = ['action', 'ip_address', 'details']
+    readonly_fields = ['level', 'action', 'ip_address', 'details', 'timestamp']
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(ScheduledDataPush)
+class ScheduledDataPushAdmin(admin.ModelAdmin):
+    list_display = [
+        'push_type',
+        'status',
+        'executed_at',
+        'last_successful_display',
+        'next_eligible_display',
+        'created_at'
+    ]
+    list_filter = ['status', 'push_type', 'executed_at']
+    search_fields = ['push_type', 'details', 'error_message']
+    readonly_fields = [
+        'push_type',
+        'status',
+        'executed_at',
+        'last_successful_push',
+        'next_eligible_display',
+        'details',
+        'error_message',
+        'created_at',
+        'updated_at'
+    ]
+
+    def last_successful_display(self, obj):
+        return obj.last_successful_push.strftime('%Y-%m-%d %H:%M:%S') if obj.last_successful_push else 'None'
+    last_successful_display.short_description = "Last Successful Push"
+
+    def next_eligible_display(self, obj):
+        next_dt = obj.next_eligible_push
+        return next_dt.strftime('%Y-%m-%d %H:%M:%S') if next_dt else 'N/A'
+    next_eligible_display.short_description = "Next Eligible Push"
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False

@@ -127,3 +127,39 @@ class SecurityLog(models.Model):
 
     def __str__(self):
         return f"[{self.level}] {self.action} - {self.ip_address}"
+
+
+class ScheduledDataPush(models.Model):
+    STATUS_SUCCESS = 'SUCCESS'
+    STATUS_SKIPPED = 'SKIPPED'
+    STATUS_FAILED = 'FAILED'
+
+    STATUS_CHOICES = [
+        (STATUS_SUCCESS, 'Success'),
+        (STATUS_SKIPPED, 'Skipped (Interval Not Reached)'),
+        (STATUS_FAILED, 'Failed'),
+    ]
+
+    push_type = models.CharField(max_length=100, default='SYSTEM_LEDGER_AUDIT')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES)
+    executed_at = models.DateTimeField(default=timezone.now)
+    last_successful_push = models.DateTimeField(null=True, blank=True)
+    details = models.TextField(blank=True)
+    error_message = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-executed_at']
+        verbose_name = 'Scheduled Data Push'
+        verbose_name_plural = 'Scheduled Data Pushes'
+
+    def __str__(self):
+        return f"[{self.status}] {self.push_type} - {self.executed_at.strftime('%Y-%m-%d %H:%M:%S')}"
+
+    @property
+    def next_eligible_push(self):
+        from datetime import timedelta
+        if self.status == self.STATUS_SUCCESS and self.executed_at:
+            return self.executed_at + timedelta(hours=96)
+        return None
