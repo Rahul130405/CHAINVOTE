@@ -15,31 +15,53 @@ on:
 
 jobs:
   trigger-push:
+    name: Trigger Automatic Backend Push
     runs-on: ubuntu-latest
     steps:
       - name: Trigger Automatic Data Push Endpoint
         env:
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
           APP_URL: ${{ secrets.APP_URL || 'https://chainvote-rrj.vercel.app' }}
-          FORCE_PARAM: ${{ inputs.force && '&force=true' || '' }}
+          IS_FORCE: ${{ github.event.inputs.force }}
         run: |
           if [ -z "$CRON_SECRET" ]; then
             echo "::error::CRON_SECRET secret is not configured in repository secrets."
             exit 1
           fi
-          echo "Sending scheduled request to ChainVote backend..."
-          RESPONSE=$(curl -s -w "\nHTTP_STATUS:%{http_code}" \
+
+          QUERY_PARAMS="?format=json"
+          if [ "$IS_FORCE" = "true" ]; then
+            QUERY_PARAMS="?format=json&force=true"
+            echo "Manual run requested with force=true (bypassing 96h check)."
+          fi
+
+          TARGET_URL="${APP_URL%/}/api/internal/automatic-data-push/${QUERY_PARAMS}"
+          echo "Sending scheduled request to ChainVote backend: ${APP_URL%/}/api/internal/automatic-data-push/"
+
+          BODY_FILE=$(mktemp)
+          HTTP_STATUS=$(curl --fail-with-body --show-error --silent \
+            --max-time 60 \
             -H "Authorization: Bearer $CRON_SECRET" \
-            "${APP_URL}/api/internal/automatic-data-push/?format=json${FORCE_PARAM}")
-          
-          HTTP_STATUS=$(echo "$RESPONSE" | tr -d '\r' | sed -e 's/.*HTTP_STATUS://')
-          BODY=$(echo "$RESPONSE" | sed -e 's/HTTP_STATUS:.*//')
-          
-          echo "Response Body: $BODY"
+            -o "$BODY_FILE" \
+            -w "%{http_code}" \
+            "$TARGET_URL") || CURL_EXIT=$?
+
+          if [ "${CURL_EXIT:-0}" -ne 0 ] && [ -z "$HTTP_STATUS" ]; then
+            echo "::error::Curl request failed with transport/network error code $CURL_EXIT"
+            rm -f "$BODY_FILE"
+            exit 1
+          fi
+
+          RESPONSE_BODY=$(cat "$BODY_FILE")
+          rm -f "$BODY_FILE"
+
           echo "HTTP Status: $HTTP_STATUS"
-          
+          echo "Response Body: $RESPONSE_BODY"
+
           if [ "$HTTP_STATUS" -ne 200 ]; then
             echo "::error::Scheduled data push failed with HTTP status $HTTP_STATUS"
             exit 1
           fi
+
           echo "Scheduled push task completed successfully."
+
