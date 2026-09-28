@@ -13,15 +13,18 @@ from rest_framework import status
 from django.db.models import Count
 from django.core.cache import cache
 
-from .models import Election, Candidate, Vote, SecurityLog, ScheduledDataPush
+from .models import Election, Candidate, Vote, SecurityLog
 from .serializers import ElectionSerializer, ElectionListSerializer, VoteSerializer
 import hashlib
+import logging
 import os
 import hmac
 from .utils.encryption import encrypt_vote, decrypt_vote
 from .utils.blockchain import verify_election_blockchain
-from .utils.data_push import execute_automatic_data_push
 from .utils.candidate_automation import execute_candidate_automation, ensure_initial_election_data
+
+logger = logging.getLogger('chainvote.views')
+
 
 
 # ─────────────────────────────────────────────
@@ -395,50 +398,6 @@ def threat_dashboard(request):
     })
 
 
-@api_view(['GET', 'POST'])
-@permission_classes([AllowAny])
-def api_internal_automatic_data_push(request):
-    """
-    Internal protected endpoint for scheduled automated backend data push.
-    Executed daily via Vercel Cron or GitHub Actions.
-    Only proceeds if 96 hours (4 days) have elapsed since the last push.
-    Protected by CRON_SECRET environment variable.
-    """
-    expected_secret = os.environ.get('CRON_SECRET')
-    if not expected_secret:
-        return Response(
-            {'error': 'Unauthorized: Server CRON_SECRET is not configured.'},
-            status=status.HTTP_401_UNAUTHORIZED
-        )
-
-    # Extract provided secret from:
-    # 1) Authorization: Bearer <token>
-    # 2) X-Cron-Secret header
-    # 3) ?secret=<token> query parameter
-    auth_header = request.headers.get('Authorization', '')
-    token = ''
-    if auth_header.startswith('Bearer '):
-        token = auth_header[7:].strip()
-    elif 'X-Cron-Secret' in request.headers:
-        token = request.headers.get('X-Cron-Secret', '').strip()
-    elif 'secret' in request.GET:
-        token = request.GET.get('secret', '').strip()
-
-    if not token or not hmac.compare_digest(token, expected_secret):
-        return Response(
-            {'error': 'Unauthorized: Invalid or missing CRON_SECRET.'},
-            status=status.HTTP_401_UNAUTHORIZED
-        )
-
-    # Allow explicit manual force bypass only if secret was verified
-    force = (
-        request.GET.get('force', '').lower() in ('true', '1') or
-        (isinstance(request.data, dict) and request.data.get('force') in (True, 'true', '1'))
-    )
-
-    result = execute_automatic_data_push(force=force)
-    http_status = status.HTTP_200_OK if result.get('status') in ('success', 'skipped') else status.HTTP_500_INTERNAL_SERVER_ERROR
-    return Response(result, status=http_status)
 
 
 @api_view(['GET', 'POST'])
