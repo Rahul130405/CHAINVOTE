@@ -12,7 +12,7 @@
       "headers": {
         "cache-control": "public, max-age=86400, stale-while-revalidate=86400"
       },
-      "dest": "/staticfiles/images/favicon.png"
+      "dest": "/staticfiles/favicon.ico"
     },
     {
       "src": "/static/(.*)",
