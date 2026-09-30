@@ -3,7 +3,13 @@
   "builds": [
     {
       "src": "chainvote/wsgi.py",
-      "use": "@vercel/python"
+      "use": "@vercel/python",
+      "config": {
+        "includeFiles": [
+          "staticfiles/**",
+          "voting/static/**"
+        ]
+      }
     }
   ],
   "routes": [
@@ -12,14 +18,14 @@
       "headers": {
         "cache-control": "public, max-age=86400, stale-while-revalidate=86400"
       },
-      "dest": "/staticfiles/favicon.ico"
+      "dest": "chainvote/wsgi.py"
     },
     {
       "src": "/static/(.*)",
       "headers": {
         "cache-control": "public, max-age=31536000, immutable"
       },
-      "dest": "/staticfiles/$1"
+      "dest": "chainvote/wsgi.py"
     },
     {
       "src": "/(.*)",
