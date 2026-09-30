@@ -1,0 +1,113 @@
+{% extends 'voting/base.html' %}
+
+{% block title %}Candidates — {{ election.title }} | ChainVote{% endblock %}
+
+{% block content %}
+<div class="space-y-8">
+    <!-- Header / Breadcrumbs -->
+    <div>
+        <a href="{% url 'manage_dashboard' %}" class="inline-flex items-center text-xs font-semibold text-gray-500 hover:text-black transition mb-3">
+            ← Back to Elections
+        </a>
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+                <div class="inline-flex items-center space-x-2 px-3 py-1 rounded-full text-xs font-semibold bg-purple-50 text-purple-700 border border-purple-200 mb-2">
+                    <span>👥</span>
+                    <span>Candidate Roster</span>
+                </div>
+                <h1 class="text-3xl font-extrabold tracking-tight text-gray-900">{{ election.title }}</h1>
+                <p class="text-sm text-gray-600 mt-1">Manage candidates standing for this election.</p>
+            </div>
+            <div class="flex items-center space-x-3">
+                <a href="{% url 'manage_candidate_create' election.id %}" id="btn-add-candidate" class="inline-flex items-center space-x-2 bg-purple-600 hover:bg-purple-700 text-white font-semibold text-sm px-5 py-2.5 rounded-xl shadow-sm transition-all transform hover:scale-[1.02] active:scale-[0.98]">
+                    <span>+</span>
+                    <span>Add Candidate</span>
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Candidate List -->
+    <div class="bg-white/80 glass-panel border border-gray-200/70 rounded-2xl shadow-sm overflow-hidden">
+        <div class="px-6 py-4 border-b border-gray-200/60 flex items-center justify-between">
+            <h2 class="text-base font-bold text-gray-900">Current Candidates ({{ candidates|length }})</h2>
+            <span class="text-xs text-gray-500 font-medium">Candidates with recorded votes are locked against deletion</span>
+        </div>
+
+        {% if candidates %}
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse" id="candidates-table">
+                    <thead>
+                        <tr class="border-b border-gray-200/60 bg-gray-50/60 text-xs font-bold uppercase tracking-wider text-gray-500">
+                            <th class="px-6 py-3.5">Candidate</th>
+                            <th class="px-6 py-3.5">Manifesto / Description</th>
+                            <th class="px-6 py-3.5 text-center">Vote Status</th>
+                            <th class="px-6 py-3.5 text-right">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-200/60 text-sm">
+                        {% for candidate in candidates %}
+                            <tr class="hover:bg-purple-50/30 transition-colors candidate-row" data-candidate-id="{{ candidate.id }}">
+                                <td class="px-6 py-4 font-bold text-gray-900 whitespace-nowrap">
+                                    <div class="flex items-center space-x-3">
+                                        <div class="w-8 h-8 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-xs uppercase">
+                                            {{ candidate.name|slice:":1" }}
+                                        </div>
+                                        <span>{{ candidate.name }}</span>
+                                    </div>
+                                </td>
+                                <td class="px-6 py-4 text-xs text-gray-600 max-w-md">
+                                    {{ candidate.description|default:"No description provided" }}
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-center">
+                                    {% if candidate.has_votes %}
+                                        <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200" title="Ballots recorded on ledger. Protected from deletion.">
+                                            <span>🔒</span>
+                                            <span class="ml-1">Votes Recorded</span>
+                                        </span>
+                                    {% else %}
+                                        <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-600 border border-gray-200">
+                                            No votes yet
+                                        </span>
+                                    {% endif %}
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-right space-x-2">
+                                    <a href="{% url 'manage_candidate_edit' candidate.id %}" class="inline-flex items-center text-xs font-semibold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg border border-blue-200 transition-colors">
+                                        Edit
+                                    </a>
+                                    {% if candidate.has_votes %}
+                                        <span class="inline-flex items-center text-xs font-semibold text-gray-400 bg-gray-100 px-3 py-1.5 rounded-lg border border-gray-200 cursor-not-allowed" title="Deletion locked: Votes have already been recorded for this candidate.">
+                                            Delete Locked
+                                        </span>
+                                    {% elif election.status == 'active' %}
+                                        <span class="inline-flex items-center text-xs font-semibold text-gray-400 bg-gray-100 px-3 py-1.5 rounded-lg border border-gray-200 cursor-not-allowed" title="Deletion locked: Candidates cannot be deleted while an election is actively ongoing.">
+                                            Election Active
+                                        </span>
+                                    {% elif election.status == 'ended' %}
+                                        <span class="inline-flex items-center text-xs font-semibold text-gray-400 bg-gray-100 px-3 py-1.5 rounded-lg border border-gray-200 cursor-not-allowed" title="Deletion locked: Candidates cannot be deleted after an election has concluded.">
+                                            Election Concluded
+                                        </span>
+                                    {% else %}
+                                        <a href="{% url 'manage_candidate_delete' candidate.id %}" class="inline-flex items-center text-xs font-semibold text-red-600 hover:text-red-800 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-lg border border-red-200 transition-colors">
+                                            Delete
+                                        </a>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <div class="px-6 py-16 text-center">
+                <div class="text-4xl mb-3">👤</div>
+                <h3 class="text-base font-bold text-gray-900 mb-1">No Candidates Added</h3>
+                <p class="text-sm text-gray-500 mb-5 max-w-sm mx-auto">This election currently has no candidates on the ballot. Add at least two candidates before voters begin casting ballots.</p>
+                <a href="{% url 'manage_candidate_create' election.id %}" class="inline-flex items-center space-x-2 bg-purple-600 hover:bg-purple-700 text-white font-semibold text-sm px-5 py-2 rounded-xl transition shadow-sm">
+                    <span>+ Add First Candidate</span>
+                </a>
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

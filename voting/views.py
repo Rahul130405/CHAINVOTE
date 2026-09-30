@@ -1,4 +1,5 @@
 from django.shortcuts import render, get_object_or_404, redirect
+from django.http import Http404
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
@@ -11,6 +12,7 @@ from rest_framework.response import Response
 from rest_framework import status
 
 from django.db.models import Count
+from django.db import transaction
 from django.core.cache import cache
 
 from .models import Election, Candidate, Vote, SecurityLog
@@ -19,9 +21,12 @@ import hashlib
 import logging
 import os
 import hmac
+import re
 from .utils.encryption import encrypt_vote, decrypt_vote
 from .utils.blockchain import verify_election_blockchain
 from .utils.candidate_automation import execute_candidate_automation, ensure_initial_election_data
+from .decorators import admin_required
+from .forms import ElectionForm, CandidateForm, candidate_has_recorded_votes
 
 logger = logging.getLogger('chainvote.views')
 
@@ -94,6 +99,18 @@ def election_detail(request, election_id):
         'user_vote': user_vote,
     })
 
+VOTER_ID_REGEX = re.compile(r'^[A-Za-z0-9]{10}$')
+
+def validate_voter_id(identity):
+    """
+    Strictly validates that a voter ID consists of exactly 10 alphanumeric characters (A-Z, a-z, 0-9).
+    No spaces, hyphens, or special characters are permitted.
+    Returns True if valid, False otherwise.
+    """
+    if not identity or not isinstance(identity, str):
+        return False
+    return bool(VOTER_ID_REGEX.match(identity))
+
 def hash_identity(identity):
     return hashlib.sha256(identity.encode()).hexdigest()
 
@@ -106,11 +123,6 @@ def cast_vote(request, election_id):
 
     election = get_object_or_404(Election, id=election_id)
 
-    # 🚫 Election must be active
-    if not election.is_active:
-        messages.error(request, f"This election is {election.status}. Voting is not allowed.")
-        return redirect('election_detail', election_id=election_id)
-
     # 🌐 Get IP Address FIRST so we can log threats
     ip = request.META.get('HTTP_X_FORWARDED_FOR', request.META.get('REMOTE_ADDR', ''))
     if ',' in ip:
@@ -122,19 +134,12 @@ def cast_vote(request, election_id):
         messages.error(request, "ID is required")
         return redirect('election_detail', election_id=election_id)
 
+    if not validate_voter_id(identity):
+        messages.error(request, "Invalid Voter ID: Must be exactly 10 alphanumeric characters.")
+        return redirect('election_detail', election_id=election_id)
+
     # 🔐 Hash identity
     voter_hash = hash_identity(identity)
-
-    # 🚨 SOC SECURITY TRIGGER: Prevent duplicate voting & LOG THE THREAT
-    if Vote.objects.filter(election=election, voter_hash=voter_hash).exists():
-        SecurityLog.objects.create(
-            level='CRITICAL',
-            action='Duplicate Vote Blocked',
-            ip_address=ip,
-            details=f"Voter hash {voter_hash[:15]}... attempted to bypass the ledger in '{election.title}'."
-        )
-        messages.error(request, "SECURITY ALERT: You have already voted with this ID. This attempt has been logged.")
-        return redirect('election_detail', election_id=election_id)
 
     # 🗳 Get candidate
     candidate_id = request.POST.get("candidate_id")
@@ -142,18 +147,44 @@ def cast_vote(request, election_id):
         messages.error(request, "Please select a candidate")
         return redirect('election_detail', election_id=election_id)
 
-    candidate = get_object_or_404(Candidate, id=candidate_id, election=election)
+    with transaction.atomic():
+        # 1. Acquire Candidate row lock before checking election status
+        candidate = (
+            Candidate.objects
+            .select_for_update()
+            .select_related('election')
+            .filter(id=candidate_id, election=election)
+            .first()
+        )
+        if not candidate:
+            raise Http404("Candidate not found or no longer available.")
 
-    # 🔐 Encrypt vote
-    encrypted = encrypt_vote(candidate.id)
+        # 2. Revalidate election status only after acquiring candidate lock
+        if not candidate.election.is_active:
+            messages.error(request, f"This election is {candidate.election.status}. Voting is not allowed.")
+            return redirect('election_detail', election_id=election_id)
 
-    # 💾 Save vote
-    new_vote = Vote.objects.create(
-        election=election,
-        encrypted_vote=encrypted,
-        voter_hash=voter_hash,
-        voter_ip=ip
-    )
+        # 3. 🚨 SOC SECURITY TRIGGER: Prevent duplicate voting & LOG THE THREAT
+        if Vote.objects.filter(election=candidate.election, voter_hash=voter_hash).exists():
+            SecurityLog.objects.create(
+                level='CRITICAL',
+                action='Duplicate Vote Blocked',
+                ip_address=ip,
+                details=f"Voter hash {voter_hash[:15]}... attempted to bypass the ledger in '{candidate.election.title}'."
+            )
+            messages.error(request, "SECURITY ALERT: You have already voted with this ID. This attempt has been logged.")
+            return redirect('election_detail', election_id=election_id)
+
+        # 4. 🔐 Encrypt vote
+        encrypted = encrypt_vote(candidate.id)
+
+        # 5. 💾 Save vote
+        new_vote = Vote.objects.create(
+            election=candidate.election,
+            encrypted_vote=encrypted,
+            voter_hash=voter_hash,
+            voter_ip=ip
+        )
 
     # Invalidate landing cache so stats update immediately
     cache.delete('home_landing_context')
@@ -294,39 +325,53 @@ def api_cast_vote(request, election_id):
     """POST /api/elections/<id>/vote/"""
     election = get_object_or_404(Election, id=election_id)
 
-    if not election.is_active:
-        return Response({'error': f'Election is {election.status}. Voting is not open.'}, status=status.HTTP_400_BAD_REQUEST)
-
     identity = request.data.get("aadhaar")
     if not identity:
         return Response({'error': 'ID (aadhaar) is required.'}, status=status.HTTP_400_BAD_REQUEST)
 
-    voter_hash = hashlib.sha256(identity.encode()).hexdigest()
+    if not validate_voter_id(identity):
+        return Response({'error': 'Invalid Voter ID: Must be exactly 10 alphanumeric characters.'}, status=status.HTTP_400_BAD_REQUEST)
 
-    if Vote.objects.filter(election=election, voter_hash=voter_hash).exists():
-        return Response({'error': 'You have already voted with this ID.'}, status=status.HTTP_400_BAD_REQUEST)
+    voter_hash = hash_identity(identity)
 
     candidate_id = request.data.get("candidate_id")
     if not candidate_id:
         return Response({'error': 'candidate_id is required.'}, status=status.HTTP_400_BAD_REQUEST)
 
-    candidate = Candidate.objects.filter(id=candidate_id, election=election).first()
-    if not candidate:
-        return Response({'error': 'Invalid candidate for this election.'}, status=status.HTTP_400_BAD_REQUEST)
-
     ip = request.META.get('HTTP_X_FORWARDED_FOR', request.META.get('REMOTE_ADDR', ''))
     if ',' in ip:
         ip = ip.split(',')[0].strip()
 
-    encrypted = encrypt_vote(candidate.id)
+    with transaction.atomic():
+        # 1. Acquire Candidate row lock before checking election status
+        candidate = (
+            Candidate.objects
+            .select_for_update()
+            .select_related('election')
+            .filter(id=candidate_id, election=election)
+            .first()
+        )
+        if not candidate:
+            return Response({'error': 'Invalid candidate for this election.'}, status=status.HTTP_400_BAD_REQUEST)
 
-    # 💾 Save vote - The Vote model's save() method automatically handles the Blockchain math!
-    vote = Vote.objects.create(
-        election=election,
-        encrypted_vote=encrypted,
-        voter_hash=voter_hash,
-        voter_ip=ip
-    )
+        # 2. Revalidate election status only after acquiring candidate lock
+        if not candidate.election.is_active:
+            return Response({'error': f'Election is {candidate.election.status}. Voting is not open.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # 3. Duplicate check inside transaction
+        if Vote.objects.filter(election=candidate.election, voter_hash=voter_hash).exists():
+            return Response({'error': 'You have already voted with this ID.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # 4. Encrypt vote
+        encrypted = encrypt_vote(candidate.id)
+
+        # 5. 💾 Save vote - The Vote model's save() method automatically handles the Blockchain math!
+        vote = Vote.objects.create(
+            election=candidate.election,
+            encrypted_vote=encrypted,
+            voter_hash=voter_hash,
+            voter_ip=ip
+        )
 
     # Invalidate landing cache
     cache.delete('home_landing_context')
@@ -386,9 +431,9 @@ def api_results(request, election_id):
     })
 
 
-@login_required
+@admin_required
 def threat_dashboard(request):
-    """SOC Admin view to monitor active threats."""
+    """SOC Admin view to monitor active threats. Restricted server-side to staff and admin users."""
     logs = SecurityLog.objects.only('id', 'level', 'action', 'ip_address', 'details', 'timestamp').all()[:50]
     critical_count = SecurityLog.objects.filter(level='CRITICAL').count()
 
@@ -438,4 +483,208 @@ def api_cron_add_candidate(request):
     result = execute_candidate_automation(force=force)
     http_status = status.HTTP_200_OK if result.get('status') in ('success', 'skipped') else status.HTTP_500_INTERNAL_SERVER_ERROR
     return Response(result, status=http_status)
+
+
+# ─────────────────────────────────────────────
+# ADMIN MANAGEMENT VIEWS (/manage/)
+# ─────────────────────────────────────────────
+
+@admin_required
+def manage_dashboard(request):
+    """Admin dashboard listing all elections and metrics."""
+    elections = list(Election.objects.prefetch_related('candidates').all().order_by('-start_time'))
+    
+    # Compute counts and attached vote numbers
+    total_elections = len(elections)
+    active_elections = 0
+    completed_elections = 0
+    total_candidates = 0
+
+    for e in elections:
+        e.vote_count = Vote.objects.filter(election=e).count()
+        total_candidates += e.candidates.count()
+        if e.status == 'active':
+            active_elections += 1
+        elif e.status == 'ended':
+            completed_elections += 1
+
+    return render(request, 'voting/manage/dashboard.html', {
+        'elections': elections,
+        'total_elections': total_elections,
+        'active_elections': active_elections,
+        'completed_elections': completed_elections,
+        'total_candidates': total_candidates,
+    })
+
+
+@admin_required
+def manage_election_create(request):
+    """Admin view to create a new election."""
+    if request.method == 'POST':
+        form = ElectionForm(request.POST)
+        if form.is_valid():
+            election = form.save()
+            cache.delete('home_landing_context')
+            messages.success(request, f"Election '{election.title}' was successfully created.")
+            return redirect('manage_dashboard')
+    else:
+        form = ElectionForm()
+
+    return render(request, 'voting/manage/election_form.html', {
+        'form': form,
+        'title': 'Create New Election',
+        'action': 'create',
+    })
+
+
+@admin_required
+def manage_election_edit(request, election_id):
+    """Admin view to edit an existing election."""
+    election = get_object_or_404(Election, id=election_id)
+    if request.method == 'POST':
+        form = ElectionForm(request.POST, instance=election)
+        if form.is_valid():
+            form.save()
+            cache.delete('home_landing_context')
+            messages.success(request, f"Election '{election.title}' was successfully updated.")
+            return redirect('manage_dashboard')
+    else:
+        form = ElectionForm(instance=election)
+
+    return render(request, 'voting/manage/election_form.html', {
+        'form': form,
+        'election': election,
+        'title': f"Edit Election: {election.title}",
+        'action': 'edit',
+    })
+
+
+@admin_required
+def manage_election_candidates(request, election_id):
+    """Admin view to list and manage candidates for a specific election."""
+    election = get_object_or_404(Election, id=election_id)
+    candidates = list(election.candidates.all())
+
+    for c in candidates:
+        c.has_votes = candidate_has_recorded_votes(c)
+
+    return render(request, 'voting/manage/candidates.html', {
+        'election': election,
+        'candidates': candidates,
+    })
+
+
+@admin_required
+def manage_candidate_create(request, election_id):
+    """Admin view to add a candidate to an election."""
+    election = get_object_or_404(Election, id=election_id)
+    if request.method == 'POST':
+        form = CandidateForm(request.POST, election=election)
+        if form.is_valid():
+            candidate = form.save(commit=False)
+            candidate.election = election
+            candidate.save()
+            cache.delete('home_landing_context')
+            messages.success(request, f"Candidate '{candidate.name}' was successfully added to '{election.title}'.")
+            return redirect('manage_election_candidates', election_id=election.id)
+    else:
+        form = CandidateForm(election=election)
+
+    return render(request, 'voting/manage/candidate_form.html', {
+        'form': form,
+        'election': election,
+        'title': f"Add Candidate — {election.title}",
+    })
+
+
+@admin_required
+def manage_candidate_edit(request, candidate_id):
+    """Admin view to edit candidate information."""
+    candidate = get_object_or_404(Candidate, id=candidate_id)
+    election = candidate.election
+    if request.method == 'POST':
+        form = CandidateForm(request.POST, instance=candidate, election=election)
+        if form.is_valid():
+            form.save()
+            cache.delete('home_landing_context')
+            messages.success(request, f"Candidate '{candidate.name}' was successfully updated.")
+            return redirect('manage_election_candidates', election_id=election.id)
+    else:
+        form = CandidateForm(instance=candidate, election=election)
+
+    return render(request, 'voting/manage/candidate_form.html', {
+        'form': form,
+        'election': election,
+        'candidate': candidate,
+        'title': f"Edit Candidate: {candidate.name}",
+    })
+
+
+@admin_required
+def manage_candidate_delete(request, candidate_id):
+    """
+    Admin view to safely delete a candidate only if:
+    1. The election status is strictly 'upcoming' (candidates cannot be deleted once active or ended).
+    2. NO votes have been cast for that candidate (verified fail-closed).
+    Server-side blocked if votes exist on the blockchain ledger or election is active/ended.
+    """
+    candidate = get_object_or_404(Candidate, id=candidate_id)
+    election_id = candidate.election_id
+
+    # 1. Pre-flight user feedback check (actual enforcement is inside the POST transaction under lock)
+    if candidate.election.status != 'upcoming':
+        messages.error(
+            request,
+            f"Security Alert: Cannot delete candidate '{candidate.name}'. Candidates can only be modified before voting opens (while election status is upcoming). Deletion is prohibited while an election is actively ongoing or concluded."
+        )
+        return redirect('manage_election_candidates', election_id=election_id)
+
+    # 2. Pre-flight safety check against recorded votes
+    if candidate_has_recorded_votes(candidate):
+        messages.error(
+            request,
+            f"Security Alert: Cannot delete candidate '{candidate.name}' because votes have already been recorded for this candidate on the blockchain ledger."
+        )
+        return redirect('manage_election_candidates', election_id=election_id)
+
+    if request.method == 'POST':
+        with transaction.atomic():
+            cand_locked = (
+                Candidate.objects
+                .select_for_update()
+                .select_related('election')
+                .filter(id=candidate_id)
+                .first()
+            )
+            if not cand_locked:
+                messages.error(request, "Candidate no longer exists.")
+                return redirect('manage_election_candidates', election_id=election_id)
+
+            # Strict enforcement under row lock: must be strictly 'upcoming'
+            if cand_locked.election.status != 'upcoming':
+                messages.error(
+                    request,
+                    f"Security Alert: Cannot delete candidate '{cand_locked.name}'. Candidates can only be deleted before voting opens (while election status is upcoming). Deletion is prohibited while an election is actively ongoing or concluded."
+                )
+                return redirect('manage_election_candidates', election_id=election_id)
+
+            # Fail-closed recorded vote check under lock
+            if candidate_has_recorded_votes(cand_locked):
+                messages.error(
+                    request,
+                    f"Security Alert: Cannot delete candidate '{cand_locked.name}' because votes have already been recorded for this candidate on the blockchain ledger."
+                )
+                return redirect('manage_election_candidates', election_id=election_id)
+
+            name = cand_locked.name
+            election_title = cand_locked.election.title
+            cand_locked.delete()
+            cache.delete('home_landing_context')
+            messages.success(request, f"Candidate '{name}' was successfully removed from '{election_title}'.")
+            return redirect('manage_election_candidates', election_id=election_id)
+
+    return render(request, 'voting/manage/candidate_confirm_delete.html', {
+        'candidate': candidate,
+    })
+
 

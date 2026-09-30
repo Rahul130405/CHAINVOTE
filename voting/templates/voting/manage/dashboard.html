@@ -1,0 +1,130 @@
+{% extends 'voting/base.html' %}
+
+{% block title %}Admin Portal — Elections | ChainVote{% endblock %}
+
+{% block content %}
+<div class="space-y-8">
+    <!-- Header Section -->
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+            <div class="inline-flex items-center space-x-2 px-3 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200 mb-2">
+                <span>🛡️</span>
+                <span>Administrative Management</span>
+            </div>
+            <h1 class="text-3xl font-extrabold tracking-tight text-gray-900">Election Management Portal</h1>
+            <p class="text-sm text-gray-600 mt-1">Configure elections, review schedules, and manage candidate rosters.</p>
+        </div>
+        <div class="flex items-center space-x-3">
+            <a href="{% url 'manage_election_create' %}" id="btn-create-election" class="inline-flex items-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm px-5 py-2.5 rounded-xl shadow-sm transition-all transform hover:scale-[1.02] active:scale-[0.98]">
+                <span>+</span>
+                <span>Create New Election</span>
+            </a>
+        </div>
+    </div>
+
+    <!-- Metrics Cards -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+        <div class="bg-white/80 glass-panel border border-gray-200/70 rounded-2xl p-5 shadow-sm">
+            <div class="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">Total Elections</div>
+            <div class="text-3xl font-extrabold text-gray-900" id="metric-total-elections">{{ total_elections }}</div>
+        </div>
+        <div class="bg-white/80 glass-panel border border-gray-200/70 rounded-2xl p-5 shadow-sm">
+            <div class="text-xs font-semibold uppercase tracking-wider text-emerald-600 mb-1">Active Now</div>
+            <div class="text-3xl font-extrabold text-emerald-600" id="metric-active-elections">{{ active_elections }}</div>
+        </div>
+        <div class="bg-white/80 glass-panel border border-gray-200/70 rounded-2xl p-5 shadow-sm">
+            <div class="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">Completed</div>
+            <div class="text-3xl font-extrabold text-gray-900" id="metric-completed-elections">{{ completed_elections }}</div>
+        </div>
+        <div class="bg-white/80 glass-panel border border-gray-200/70 rounded-2xl p-5 shadow-sm">
+            <div class="text-xs font-semibold uppercase tracking-wider text-purple-600 mb-1">Total Candidates</div>
+            <div class="text-3xl font-extrabold text-purple-600" id="metric-total-candidates">{{ total_candidates }}</div>
+        </div>
+    </div>
+
+    <!-- Elections List Table -->
+    <div class="bg-white/80 glass-panel border border-gray-200/70 rounded-2xl shadow-sm overflow-hidden">
+        <div class="px-6 py-4 border-b border-gray-200/60 flex items-center justify-between">
+            <h2 class="text-base font-bold text-gray-900">Elections Roster</h2>
+            <span class="text-xs text-gray-500 font-medium">Protected against deletion to preserve cryptographic ledger integrity</span>
+        </div>
+
+        {% if elections %}
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse" id="elections-table">
+                    <thead>
+                        <tr class="border-b border-gray-200/60 bg-gray-50/60 text-xs font-bold uppercase tracking-wider text-gray-500">
+                            <th class="px-6 py-3.5">Election</th>
+                            <th class="px-6 py-3.5">Status</th>
+                            <th class="px-6 py-3.5">Schedule</th>
+                            <th class="px-6 py-3.5 text-center">Candidates</th>
+                            <th class="px-6 py-3.5 text-center">Votes Recorded</th>
+                            <th class="px-6 py-3.5 text-right">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-200/60 text-sm">
+                        {% for election in elections %}
+                            <tr class="hover:bg-blue-50/30 transition-colors election-row" data-election-id="{{ election.id }}">
+                                <td class="px-6 py-4">
+                                    <div class="font-bold text-gray-900">{{ election.title }}</div>
+                                    <div class="text-xs text-gray-500 mt-0.5 max-w-xs truncate">{{ election.description|default:"No description provided" }}</div>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    {% if election.status == 'active' %}
+                                        <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5 animate-pulse"></span>
+                                            Active
+                                        </span>
+                                    {% elif election.status == 'upcoming' %}
+                                        <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-100 text-blue-800 border border-blue-200">
+                                            Upcoming
+                                        </span>
+                                    {% else %}
+                                        <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-700 border border-gray-200">
+                                            Ended
+                                        </span>
+                                    {% endif %}
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-xs text-gray-600">
+                                    <div><span class="font-medium text-gray-500">Start:</span> {{ election.start_time|date:"Y-m-d H:i" }}</div>
+                                    <div><span class="font-medium text-gray-500">End:</span> {{ election.end_time|date:"Y-m-d H:i" }}</div>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-center font-semibold text-gray-800">
+                                    <span class="inline-block px-2.5 py-0.5 rounded-md bg-gray-100 text-gray-700 text-xs font-medium">
+                                        {{ election.candidates.count }}
+                                    </span>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-center font-semibold text-gray-800">
+                                    <span class="inline-block px-2.5 py-0.5 rounded-md bg-gray-100 text-gray-700 text-xs font-medium">
+                                        {{ election.vote_count }}
+                                    </span>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-right space-x-2">
+                                    <a href="{% url 'manage_election_candidates' election.id %}" class="inline-flex items-center text-xs font-semibold text-purple-600 hover:text-purple-800 bg-purple-50 hover:bg-purple-100 px-3 py-1.5 rounded-lg border border-purple-200 transition-colors">
+                                        Candidates
+                                    </a>
+                                    <a href="{% url 'manage_election_edit' election.id %}" class="inline-flex items-center text-xs font-semibold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg border border-blue-200 transition-colors">
+                                        Edit
+                                    </a>
+                                    <a href="{% url 'election_detail' election.id %}" target="_blank" class="inline-flex items-center text-xs font-semibold text-gray-600 hover:text-gray-900 bg-gray-50 hover:bg-gray-100 px-3 py-1.5 rounded-lg border border-gray-200 transition-colors">
+                                        Booth ↗
+                                    </a>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <div class="px-6 py-16 text-center">
+                <div class="text-4xl mb-3">🗳️</div>
+                <h3 class="text-base font-bold text-gray-900 mb-1">No Elections Configured</h3>
+                <p class="text-sm text-gray-500 mb-5 max-w-sm mx-auto">Get started by creating the first digital election for your organization or campus.</p>
+                <a href="{% url 'manage_election_create' %}" class="inline-flex items-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm px-5 py-2 rounded-xl transition shadow-sm">
+                    <span>+ Create New Election</span>
+                </a>
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
