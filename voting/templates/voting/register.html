@@ -1,14 +1,17 @@
+{% load static %}
 <!DOCTYPE html>
-<html lang="en" class="dark">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Register | ChainVote</title>
+    <link rel="icon" type="image/png" sizes="32x32" href="{% static 'images/favicon.png' %}">
+    <link rel="icon" type="image/x-icon" href="{% static 'favicon.ico' %}">
+    <link rel="apple-touch-icon" href="{% static 'images/favicon.png' %}">
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
-            darkMode: 'class',
             theme: {
                 extend: {
                     fontFamily: {
@@ -17,9 +20,7 @@
                     colors: {
                         apple: {
                             light: '#f5f5f7',
-                            dark: '#000000',
                             cardLight: 'rgba(255, 255, 255, 0.7)',
-                            cardDark: 'rgba(28, 28, 30, 0.5)',
                         }
                     }
                 }
@@ -45,10 +46,6 @@
             -webkit-backdrop-filter: blur(20px);
             box-shadow: 0 4px 24px rgba(0, 0, 0, 0.04);
         }
-        .dark .glass-panel {
-            box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
-            border-top: 1px solid rgba(255, 255, 255, 0.05);
-        }
 
         .ambient-blob {
             position: absolute;
@@ -58,7 +55,6 @@
             z-index: -1;
             animation: float 20s ease-in-out infinite alternate;
         }
-        .dark .ambient-blob { opacity: 0.15; filter: blur(100px); }
         
         .blob-1 { top: -10%; left: -10%; width: 50vw; height: 50vw; background: #3b82f6; animation-delay: 0s; }
         .blob-2 { top: 40%; right: -10%; width: 60vw; height: 60vw; background: #8b5cf6; animation-delay: -5s; }
@@ -79,14 +75,11 @@
         .reveal-visible { opacity: 1; transform: translateY(0); }
     </style>
 </head>
-<body class="bg-apple-light text-gray-900 dark:bg-apple-dark dark:text-gray-100 selection:bg-blue-500 selection:text-white min-h-screen flex flex-col">
+<body class="bg-apple-light text-gray-900 selection:bg-blue-500 selection:text-white min-h-screen flex flex-col">
 
     <script>
-        if (localStorage.getItem('color-theme') === 'dark' || (!('color-theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-            document.documentElement.classList.add('dark');
-        } else {
-            document.documentElement.classList.remove('dark');
-        }
+        document.documentElement.classList.remove('dark');
+        localStorage.removeItem('color-theme');
     </script>
 
     <div class="fixed inset-0 overflow-hidden pointer-events-none z-[-1]">
@@ -95,136 +88,250 @@
         <div class="ambient-blob blob-3"></div>
     </div>
 
-    <nav class="fixed top-0 w-full z-50 glass-panel bg-white/70 dark:bg-black/50 border-b border-gray-200/50 dark:border-white/5">
+    <!-- Navigation Bar -->
+    <nav class="fixed top-0 w-full z-50 glass-panel bg-white/70 border-b border-gray-200/50">
         <div class="max-w-6xl mx-auto px-6 py-4 flex justify-between items-center">
             <a href="{% url 'home' %}" class="flex items-center space-x-2">
-                <div class="w-6 h-6 rounded-full bg-black dark:bg-white flex items-center justify-center">
-                    <span class="text-white dark:text-black font-bold text-xs">C</span>
-                </div>
+                <img src="{% static 'voting/images/chainvote-logo.png' %}" alt="ChainVote Logo" class="w-8 h-8 object-contain">
                 <span class="text-lg font-semibold tracking-tight">ChainVote</span>
             </a>
             
-            <div class="flex items-center space-x-6">
-                <button id="theme-toggle" class="text-gray-600 hover:text-black dark:text-gray-500 dark:hover:text-white transition">
-                    <svg id="theme-toggle-dark-icon" class="hidden w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"></path></svg>
-                    <svg id="theme-toggle-light-icon" class="hidden w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z"></path></svg>
+            <div class="flex items-center space-x-4">
+                <!-- Bilingual Toggle -->
+                <button id="lang-toggle" onclick="toggleLanguage()" class="flex items-center space-x-1 px-3 py-1 rounded-full text-xs font-semibold bg-gray-100 hover:bg-gray-200 text-gray-700 transition border border-gray-200" aria-label="Switch language between English and Hindi">
+                    <span>🌐</span>
+                    <span id="lang-text">हिंदी</span>
                 </button>
-                <a href="{% url 'login' %}" class="text-sm font-medium bg-black text-white dark:bg-white dark:text-black px-4 py-1.5 rounded-full hover:scale-105 transition transform shadow-sm">Log In</a>
+
+                <a href="{% url 'login' %}" class="text-sm font-medium bg-black text-white px-4 py-1.5 rounded-full hover:scale-105 transition transform shadow-sm" data-i18n="nav_login">Log In</a>
             </div>
         </div>
     </nav>
 
+    <!-- Main Content -->
     <main class="flex-grow flex items-center justify-center px-6 pt-32 pb-24 relative z-10">
         <div class="w-full max-w-md reveal-hidden">
-            <div class="bg-apple-cardLight dark:bg-apple-cardDark glass-panel rounded-[2.5rem] p-8 md:p-10 border border-gray-200/60 dark:border-white/5 shadow-2xl">
-                <div class="text-center mb-10">
-                    <div class="w-16 h-16 bg-black dark:bg-white rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg">
-                        <span class="text-white dark:text-black text-3xl font-bold">C</span>
-                    </div>
-                    <h1 class="text-3xl font-bold tracking-tight text-black dark:text-white">Create Account</h1>
-                    <p class="text-gray-600 dark:text-gray-400 mt-2 font-medium">Join the decentralized network</p>
+            <div class="bg-white/80 glass-panel rounded-[2.5rem] p-8 md:p-10 border border-gray-200/70 shadow-2xl">
+                
+                <div class="text-center mb-8">
+                    <img src="{% static 'voting/images/chainvote-logo.png' %}" alt="ChainVote Logo" class="w-16 h-16 object-contain mx-auto mb-5 drop-shadow-md">
+                    <h1 class="text-3xl font-bold tracking-tight text-gray-900" data-i18n="register_title">Create Account</h1>
+                    <p class="text-gray-600 mt-2 font-medium text-sm" data-i18n="register_subtitle">Register to vote in digital elections</p>
                 </div>
 
                 {% if messages %}
-                    <div class="mb-6 space-y-2">
+                    <div class="mb-6 space-y-2" role="alert">
                         {% for message in messages %}
-                            <div class="p-3 rounded-xl text-sm font-medium {% if message.tags == 'error' %}bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20{% else %}bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20{% endif %}">
-                                {{ message }}
+                            <div class="p-3 rounded-xl text-sm font-medium {% if message.tags == 'error' %}bg-red-500/10 text-red-600 border border-red-500/20{% else %}bg-emerald-500/10 text-emerald-600 border border-emerald-500/20{% endif %} flex items-center">
+                                <span class="mr-2">{% if message.tags == 'error' %}⚠️{% else %}✓{% endif %}</span>
+                                <span>{{ message }}</span>
                             </div>
                         {% endfor %}
                     </div>
                 {% endif %}
 
-                <form method="POST" class="space-y-6">
+                <form method="POST" class="space-y-5">
                     {% csrf_token %}
                     <div>
-                        <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 ml-1" for="username">Username</label>
+                        <label class="block text-sm font-semibold text-gray-700 mb-1.5 ml-1" for="username" data-i18n="label_username">Username</label>
                         <input
                             type="text"
                             id="username"
                             name="username"
-                            class="w-full bg-white dark:bg-black/40 border border-gray-200 dark:border-white/10 rounded-2xl px-5 py-4 text-black dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition shadow-sm"
+                            class="w-full bg-white border border-gray-200 rounded-2xl px-5 py-3.5 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition shadow-sm text-base"
                             placeholder="Choose a username"
+                            data-i18n-placeholder="ph_username"
                             required
                             autofocus
                         >
+                        <p class="text-xs text-gray-500 mt-1.5 ml-1" data-i18n="hint_username">Letters and numbers only, no spaces</p>
                     </div>
+
                     <div>
-                        <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 ml-1" for="password">Password</label>
-                        <input
-                            type="password"
-                            id="password"
-                            name="password"
-                            class="w-full bg-white dark:bg-black/40 border border-gray-200 dark:border-white/10 rounded-2xl px-5 py-4 text-black dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition shadow-sm"
-                            placeholder="Create a password"
-                            required
-                        >
+                        <label class="block text-sm font-semibold text-gray-700 mb-1.5 ml-1" for="password" data-i18n="label_password">Password</label>
+                        <div class="relative">
+                            <input
+                                type="password"
+                                id="password"
+                                name="password"
+                                class="w-full bg-white border border-gray-200 rounded-2xl pl-5 pr-12 py-3.5 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition shadow-sm text-base"
+                                placeholder="Create a password"
+                                data-i18n-placeholder="ph_password"
+                                required
+                            >
+                            <button 
+                                type="button" 
+                                id="togglePasswordBtn"
+                                onclick="togglePasswordVisibility('password', this)" 
+                                class="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-800 p-1.5 focus:outline-none"
+                                aria-label="Show or hide password"
+                                title="Show/Hide Password"
+                            >
+                                <svg class="w-5 h-5 eye-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                </svg>
+                                <svg class="w-5 h-5 eye-slash-icon hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18" />
+                                </svg>
+                            </button>
+                        </div>
+                        <p class="text-xs text-gray-500 mt-1.5 ml-1" data-i18n="hint_password">Minimum 8 characters recommended</p>
                     </div>
+
                     <div>
-                        <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 ml-1" for="password2">Confirm Password</label>
-                        <input
-                            type="password"
-                            id="password2"
-                            name="password2"
-                            class="w-full bg-white dark:bg-black/40 border border-gray-200 dark:border-white/10 rounded-2xl px-5 py-4 text-black dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition shadow-sm"
-                            placeholder="Repeat your password"
-                            required
-                        >
+                        <label class="block text-sm font-semibold text-gray-700 mb-1.5 ml-1" for="password2" data-i18n="label_password2">Confirm Password</label>
+                        <div class="relative">
+                            <input
+                                type="password"
+                                id="password2"
+                                name="password2"
+                                class="w-full bg-white border border-gray-200 rounded-2xl pl-5 pr-12 py-3.5 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition shadow-sm text-base"
+                                placeholder="Repeat your password"
+                                data-i18n-placeholder="ph_password2"
+                                required
+                            >
+                            <button 
+                                type="button" 
+                                id="togglePassword2Btn"
+                                onclick="togglePasswordVisibility('password2', this)" 
+                                class="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-800 p-1.5 focus:outline-none"
+                                aria-label="Show or hide confirmed password"
+                                title="Show/Hide Password"
+                            >
+                                <svg class="w-5 h-5 eye-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                </svg>
+                                <svg class="w-5 h-5 eye-slash-icon hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18" />
+                                </svg>
+                            </button>
+                        </div>
                     </div>
                     
-                    <button type="submit" class="w-full bg-black text-white dark:bg-white dark:text-black py-4 rounded-2xl font-bold text-lg hover:scale-[1.02] active:scale-[0.98] transition transform shadow-xl">
-                        Create Account →
+                    <button type="submit" class="w-full bg-black text-white py-4 rounded-2xl font-bold text-lg hover:scale-[1.02] active:scale-[0.98] transition transform shadow-xl">
+                        <span data-i18n="btn_register">Create Account →</span>
                     </button>
                 </form>
 
                 <div class="mt-8 text-center">
-                    <p class="text-gray-500 dark:text-gray-500 text-sm font-medium">
-                        Already have an account? 
-                        <a href="{% url 'login' %}" class="text-black dark:text-white hover:underline decoration-2 underline-offset-4">Sign in here</a>
+                    <p class="text-gray-500 text-sm font-medium">
+                        <span data-i18n="already_account_text">Already have an account?</span> 
+                        <a href="{% url 'login' %}" class="text-black font-semibold hover:underline decoration-2 underline-offset-4" data-i18n="link_signin">Sign in here</a>
                     </p>
                 </div>
             </div>
         </div>
     </main>
 
-    <footer class="border-t border-gray-200/60 dark:border-white/5 bg-white/70 dark:bg-black/20 backdrop-blur-md relative z-10">
+    <!-- Footer -->
+    <footer class="border-t border-gray-200/60 bg-white/70 backdrop-blur-md relative z-10">
         <div class="max-w-6xl mx-auto px-6 py-8 flex flex-col md:flex-row justify-between items-center gap-4">
             <div class="flex items-center space-x-2">
-                <div class="w-5 h-5 rounded-full bg-black dark:bg-white flex items-center justify-center">
-                    <span class="text-white dark:text-black font-bold text-[10px]">C</span>
-                </div>
-                <span class="font-semibold tracking-tight text-sm text-black dark:text-white">ChainVote</span>
+                <img src="{% static 'voting/images/chainvote-logo.png' %}" alt="ChainVote Logo" class="w-6 h-6 object-contain">
+                <span class="font-semibold tracking-tight text-sm text-black">ChainVote</span>
             </div>
-            <p class="text-xs text-gray-500 dark:text-gray-500 font-medium">
+            <p class="text-xs text-gray-500 font-medium" data-i18n="footer_tagline">
                 Secure & Decentralized Voting Protocol
             </p>
         </div>
     </footer>
 
+    <!-- Scripts -->
     <script>
-        // Theme Toggle Logic
-        const themeToggleBtn = document.getElementById('theme-toggle');
-        const darkIcon = document.getElementById('theme-toggle-dark-icon');
-        const lightIcon = document.getElementById('theme-toggle-light-icon');
-
-        if (document.documentElement.classList.contains('dark')) { lightIcon.classList.remove('hidden'); } 
-        else { darkIcon.classList.remove('hidden'); }
-
-        themeToggleBtn.addEventListener('click', function() {
-            darkIcon.classList.toggle('hidden'); lightIcon.classList.toggle('hidden');
-            if (document.documentElement.classList.contains('dark')) {
-                document.documentElement.classList.remove('dark');
-                localStorage.setItem('color-theme', 'light');
+        // Password Visibility Toggle
+        function togglePasswordVisibility(fieldId, btn) {
+            const input = document.getElementById(fieldId);
+            const eyeIcon = btn.querySelector('.eye-icon');
+            const eyeSlashIcon = btn.querySelector('.eye-slash-icon');
+            
+            if (input.type === 'password') {
+                input.type = 'text';
+                eyeIcon.classList.add('hidden');
+                eyeSlashIcon.classList.remove('hidden');
+                btn.setAttribute('aria-label', 'Hide password');
             } else {
-                document.documentElement.classList.add('dark');
-                localStorage.setItem('color-theme', 'dark');
+                input.type = 'password';
+                eyeIcon.classList.remove('hidden');
+                eyeSlashIcon.classList.add('hidden');
+                btn.setAttribute('aria-label', 'Show password');
             }
-        });
+        }
 
-        // Reveal animation
+        // Bilingual Dictionary & Engine
+        const translations = {
+            en: {
+                nav_login: 'Log In',
+                register_title: 'Create Account',
+                register_subtitle: 'Register to vote in digital elections',
+                label_username: 'Username',
+                ph_username: 'Choose a username',
+                hint_username: 'Letters and numbers only, no spaces',
+                label_password: 'Password',
+                ph_password: 'Create a password',
+                hint_password: 'Minimum 8 characters recommended',
+                label_password2: 'Confirm Password',
+                ph_password2: 'Repeat your password',
+                btn_register: 'Create Account →',
+                already_account_text: 'Already have an account?',
+                link_signin: 'Sign in here',
+                footer_tagline: 'Secure & Decentralized Voting Protocol',
+                lang_btn: 'हिंदी'
+            },
+            hi: {
+                nav_login: 'लॉग इन',
+                register_title: 'खाता बनाएं',
+                register_subtitle: 'डिजिटल चुनाव में भाग लेने के लिए पंजीकरण करें',
+                label_username: 'उपयोगकर्ता नाम (Username)',
+                ph_username: 'अपना यूजरनेम चुनें',
+                hint_username: 'केवल अक्षर और संख्याएं, रिक्त स्थान नहीं',
+                label_password: 'पासवर्ड (Password)',
+                ph_password: 'एक मजबूत पासवर्ड बनाएं',
+                hint_password: 'कम से कम 8 अक्षर अनुशंसित हैं',
+                label_password2: 'पासवर्ड की पुष्टि करें',
+                ph_password2: 'अपना पासवर्ड दोबारा दर्ज करें',
+                btn_register: 'खाता बनाएं →',
+                already_account_text: 'क्या आपका पहले से खाता है?',
+                link_signin: 'यहाँ साइन इन करें',
+                footer_tagline: 'सुरक्षित एवं विकेंद्रीकृत मतदान प्रणाली',
+                lang_btn: 'English'
+            }
+        };
+
+        function setLanguage(lang) {
+            localStorage.setItem('preferred-lang', lang);
+            document.documentElement.lang = lang;
+            const dict = translations[lang] || translations.en;
+            
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                const key = el.getAttribute('data-i18n');
+                if (dict[key]) el.textContent = dict[key];
+            });
+
+            document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+                const key = el.getAttribute('data-i18n-placeholder');
+                if (dict[key]) el.setAttribute('placeholder', dict[key]);
+            });
+
+            const langText = document.getElementById('lang-text');
+            if (langText) langText.textContent = dict.lang_btn;
+        }
+
+        function toggleLanguage() {
+            const currentLang = localStorage.getItem('preferred-lang') || 'en';
+            const nextLang = currentLang === 'en' ? 'hi' : 'en';
+            setLanguage(nextLang);
+        }
+
+        // Initialize Page
         document.addEventListener("DOMContentLoaded", () => {
+            const savedLang = localStorage.getItem('preferred-lang') || 'en';
+            setLanguage(savedLang);
+            
             setTimeout(() => {
-                document.querySelector('.reveal-hidden').classList.add('reveal-visible');
+                const el = document.querySelector('.reveal-hidden');
+                if (el) el.classList.add('reveal-visible');
             }, 100);
         });
     </script>

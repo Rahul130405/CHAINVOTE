@@ -1,14 +1,17 @@
+{% load static %}
 <!DOCTYPE html>
-<html lang="en" class="dark">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Election Results | {{ election.title }}</title>
+    <link rel="icon" type="image/png" sizes="32x32" href="{% static 'images/favicon.png' %}">
+    <link rel="icon" type="image/x-icon" href="{% static 'favicon.ico' %}">
+    <link rel="apple-touch-icon" href="{% static 'images/favicon.png' %}">
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
-            darkMode: 'class',
             theme: {
                 extend: {
                     fontFamily: {
@@ -16,7 +19,7 @@
                         mono: ['JetBrains Mono', 'monospace'],
                     },
                     colors: {
-                        apple: { light: '#f5f5f7', dark: '#000000' }
+                        apple: { light: '#f5f5f7' }
                     }
                 }
             }
@@ -42,10 +45,6 @@
             -webkit-backdrop-filter: blur(20px);
             box-shadow: 0 4px 24px rgba(0, 0, 0, 0.04);
         }
-        .dark .glass-panel {
-            box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
-            border-top: 1px solid rgba(255, 255, 255, 0.05);
-        }
 
         /* Ambient Mesh Background Animation */
         .ambient-blob {
@@ -56,7 +55,6 @@
             z-index: -1;
             animation: float 20s ease-in-out infinite alternate;
         }
-        .dark .ambient-blob { opacity: 0.15; filter: blur(100px); }
         
         .blob-1 { top: -10%; left: -10%; width: 50vw; height: 50vw; background: #3b82f6; animation-delay: 0s; }
         .blob-2 { top: 40%; right: -10%; width: 60vw; height: 60vw; background: #8b5cf6; animation-delay: -5s; }
@@ -84,48 +82,38 @@
         .animate-fill { animation: fillBar 1.5s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
     </style>
 </head>
-<body class="bg-apple-light text-gray-900 dark:bg-apple-dark dark:text-gray-100 selection:bg-blue-500 selection:text-white">
+<body class="bg-apple-light text-gray-900 selection:bg-blue-500 selection:text-white">
 
     <script>
-        if (localStorage.getItem('color-theme') === 'dark' || (!('color-theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-            document.documentElement.classList.add('dark');
-        } else {
-            document.documentElement.classList.remove('dark');
-        }
+        document.documentElement.classList.remove('dark');
+        localStorage.removeItem('color-theme');
     </script>
 
     <div class="fixed inset-0 overflow-hidden pointer-events-none z-[-1]">
         <div class="ambient-blob blob-1"></div>
         <div class="ambient-blob blob-2"></div>
         <div class="ambient-blob blob-3"></div>
-        <div class="absolute inset-0 opacity-[0.03] dark:opacity-[0.05]" style="background-image: radial-gradient(currentColor 1px, transparent 1px); background-size: 32px 32px;"></div>
+        <div class="absolute inset-0 opacity-[0.03]" style="background-image: radial-gradient(currentColor 1px, transparent 1px); background-size: 32px 32px;"></div>
     </div>
 
-    <nav class="fixed top-0 w-full z-50 glass-panel bg-white/70 dark:bg-black/50 border-b border-gray-200/50 dark:border-white/5">
+    <nav class="fixed top-0 w-full z-50 glass-panel bg-white/70 border-b border-gray-200/50">
         <div class="max-w-6xl mx-auto px-6 py-4 flex justify-between items-center">
             <a href="{% url 'home' %}" class="flex items-center space-x-2 cursor-pointer group">
-                <div class="w-6 h-6 rounded-full bg-black dark:bg-white flex items-center justify-center transition-transform group-hover:scale-110">
-                    <span class="text-white dark:text-black font-bold text-xs">C</span>
-                </div>
+                <img src="{% static 'voting/images/chainvote-logo.png' %}" alt="ChainVote Logo" class="w-8 h-8 object-contain transition-transform group-hover:scale-110">
                 <span class="text-lg font-semibold tracking-tight">ChainVote</span>
             </a>
             
             <div class="flex items-center space-x-6">
-                <a href="{% url 'blockchain_explorer' election.id %}" class="hidden md:flex text-xs font-semibold tracking-wide text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 transition items-center">
+                <a href="{% url 'blockchain_explorer' election.id %}" class="hidden md:flex text-xs font-semibold tracking-wide text-blue-600 hover:text-blue-700 transition items-center">
                     <span class="w-1.5 h-1.5 bg-blue-500 rounded-full mr-2 animate-pulse"></span> Audit Ledger
                 </a>
-                
-                <button id="theme-toggle" class="text-gray-600 hover:text-black dark:text-gray-500 dark:hover:text-white transition">
-                    <svg id="theme-toggle-dark-icon" class="hidden w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"></path></svg>
-                    <svg id="theme-toggle-light-icon" class="hidden w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z"></path></svg>
-                </button>
             </div>
         </div>
     </nav>
 
     <main class="max-w-4xl mx-auto px-6 pt-32 pb-24 relative z-10 reveal-hidden">
         
-        <a href="{% url 'home' %}" class="text-slate-500 hover:text-slate-900 dark:hover:text-white transition flex items-center text-sm font-semibold mb-8 w-fit">
+        <a href="{% url 'home' %}" class="text-slate-500 hover:text-slate-900 transition flex items-center text-sm font-semibold mb-8 w-fit">
             <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
             Back to Network
         </a>
@@ -133,57 +121,57 @@
         <div class="mb-12">
             <div class="flex items-center space-x-3 mb-4">
                 {% if election.status == 'ended' %}
-                    <div class="inline-flex items-center px-3 py-1 rounded-full bg-gray-200/50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700">
+                    <div class="inline-flex items-center px-3 py-1 rounded-full bg-gray-200/70 border border-gray-300">
                         <span class="w-2 h-2 bg-gray-500 rounded-full mr-2"></span>
-                        <span class="text-xs font-bold tracking-widest uppercase text-gray-600 dark:text-gray-400">Election Concluded</span>
+                        <span class="text-xs font-bold tracking-widest uppercase text-gray-700">Election Concluded</span>
                     </div>
                 {% else %}
-                    <div class="inline-flex items-center px-3 py-1 rounded-full bg-emerald-100 dark:bg-emerald-900/30 border border-emerald-200 dark:border-emerald-800/50">
+                    <div class="inline-flex items-center px-3 py-1 rounded-full bg-emerald-100 border border-emerald-200">
                         <span class="w-2 h-2 bg-emerald-500 rounded-full animate-pulse mr-2"></span>
-                        <span class="text-xs font-bold tracking-widest uppercase text-emerald-600 dark:text-emerald-400">Election Active</span>
+                        <span class="text-xs font-bold tracking-widest uppercase text-emerald-700">Election Active</span>
                     </div>
                 {% endif %}
             </div>
 
-            <h1 class="text-5xl md:text-6xl font-black tracking-tighter leading-tight mb-4 text-black dark:text-white">{{ election.title }}</h1>
-            <p class="text-lg text-gray-600 dark:text-gray-400 font-medium max-w-2xl">{{ election.description }}</p>
+            <h1 class="text-5xl md:text-6xl font-black tracking-tighter leading-tight mb-4 text-gray-900">{{ election.title }}</h1>
+            <p class="text-lg text-gray-600 font-medium max-w-2xl">{{ election.description }}</p>
 
             <div class="flex flex-wrap gap-4 mt-8">
-                <div class="glass-panel bg-white/60 dark:bg-white/5 border border-gray-200/60 dark:border-white/10 px-5 py-3 rounded-2xl flex items-center">
-                    <div class="w-8 h-8 rounded-full bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center mr-3">
-                        <svg class="w-4 h-4 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                <div class="glass-panel bg-white/80 border border-gray-200/80 px-5 py-3 rounded-2xl flex items-center shadow-sm">
+                    <div class="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center mr-3">
+                        <svg class="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                     </div>
                     <div>
                         <p class="text-[10px] text-gray-500 uppercase tracking-widest font-bold">Total Votes Cast</p>
-                        <p class="font-bold text-gray-900 dark:text-white">{{ election.total_votes }}</p>
+                        <p class="font-bold text-gray-900">{{ election.total_votes }}</p>
                     </div>
                 </div>
-                <div class="glass-panel bg-white/60 dark:bg-white/5 border border-gray-200/60 dark:border-white/10 px-5 py-3 rounded-2xl flex items-center">
-                    <div class="w-8 h-8 rounded-full bg-purple-50 dark:bg-purple-900/30 flex items-center justify-center mr-3">
-                        <svg class="w-4 h-4 text-purple-600 dark:text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                <div class="glass-panel bg-white/80 border border-gray-200/80 px-5 py-3 rounded-2xl flex items-center shadow-sm">
+                    <div class="w-8 h-8 rounded-full bg-purple-50 flex items-center justify-center mr-3">
+                        <svg class="w-4 h-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                     </div>
                     <div>
                         <p class="text-[10px] text-gray-500 uppercase tracking-widest font-bold">End Time (UTC)</p>
-                        <p class="font-mono text-sm font-semibold text-gray-900 dark:text-white">{{ election.end_time|date:"M d, Y H:i" }}</p>
+                        <p class="font-mono text-sm font-semibold text-gray-900">{{ election.end_time|date:"M d, Y H:i" }}</p>
                     </div>
                 </div>
             </div>
         </div>
 
         {% if election.status != 'ended' %}
-        <div class="glass-panel bg-white/80 dark:bg-[#0B1120]/80 border border-gray-200/80 dark:border-white/10 rounded-[2.5rem] p-12 md:p-20 text-center shadow-xl relative overflow-hidden">
-            <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-blue-500/10 dark:bg-blue-500/20 blur-[60px] rounded-full z-0 pointer-events-none"></div>
+        <div class="glass-panel bg-white/80 border border-gray-200/80 rounded-[2.5rem] p-12 md:p-20 text-center shadow-xl relative overflow-hidden">
+            <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-blue-500/10 blur-[60px] rounded-full z-0 pointer-events-none"></div>
             
             <div class="relative z-10">
-                <div class="w-24 h-24 mx-auto bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-full flex items-center justify-center mb-8 shadow-sm">
+                <div class="w-24 h-24 mx-auto bg-gray-50 border border-gray-200 rounded-full flex items-center justify-center mb-8 shadow-sm">
                     <svg class="w-10 h-10 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
                 </div>
-                <h2 class="text-3xl font-bold text-gray-900 dark:text-white mb-4">Cryptographic Lock Active</h2>
-                <p class="text-gray-500 dark:text-gray-400 font-medium max-w-md mx-auto leading-relaxed">
+                <h2 class="text-3xl font-bold text-gray-900 mb-4">Cryptographic Lock Active</h2>
+                <p class="text-gray-500 font-medium max-w-md mx-auto leading-relaxed">
                     To guarantee absolute integrity, results are encrypted on the blockchain and cannot be decrypted or tallied until the election officially concludes.
                 </p>
                 <div class="mt-8">
-                    <a href="{% url 'blockchain_explorer' election.id %}" class="inline-flex items-center text-sm font-semibold bg-black text-white dark:bg-white dark:text-black px-6 py-3 rounded-full hover:scale-105 transition transform shadow-md">
+                    <a href="{% url 'blockchain_explorer' election.id %}" class="inline-flex items-center text-sm font-semibold bg-black text-white px-6 py-3 rounded-full hover:scale-105 transition transform shadow-md">
                         Audit Live Ledger Instead
                     </a>
                 </div>
@@ -192,26 +180,26 @@
 
         {% else %}
         <div class="space-y-6">
-            <h2 class="text-xl font-bold tracking-tight text-gray-900 dark:text-white pl-2 mb-2 border-b border-gray-200 dark:border-gray-800 pb-4">Final Ledger Tally</h2>
+            <h2 class="text-xl font-bold tracking-tight text-gray-900 pl-2 mb-2 border-b border-gray-200 pb-4">Final Ledger Tally</h2>
 
             {% if candidates %}
                 {% for candidate in candidates %}
                 <div class="glass-panel relative overflow-hidden rounded-[2rem] p-6 md:p-8 flex flex-col md:flex-row items-start md:items-center gap-6 transition-all duration-300
                     {% if forloop.first %} 
-                        bg-yellow-50/80 dark:bg-yellow-900/10 border-2 border-yellow-400/50 dark:border-yellow-600/50 shadow-[0_0_30px_rgba(250,204,21,0.15)]
+                        bg-yellow-50/80 border-2 border-yellow-400/50 shadow-[0_0_30px_rgba(250,204,21,0.15)]
                     {% else %} 
-                        bg-white/60 dark:bg-white/5 border border-gray-200/60 dark:border-white/10 
+                        bg-white/80 border border-gray-200/80 
                     {% endif %}">
                     
                     {% if forloop.first %}
-                    <div class="absolute right-0 top-0 w-64 h-64 bg-yellow-400/10 dark:bg-yellow-500/10 blur-[50px] rounded-full pointer-events-none -z-10"></div>
+                    <div class="absolute right-0 top-0 w-64 h-64 bg-yellow-400/10 blur-[50px] rounded-full pointer-events-none -z-10"></div>
                     {% endif %}
 
                     <div class="flex-shrink-0 w-16 h-16 rounded-2xl flex items-center justify-center text-3xl shadow-sm
-                        {% if forloop.first %} bg-white dark:bg-yellow-900/40 border border-yellow-200 dark:border-yellow-700/50
-                        {% elif forloop.counter == 2 %} bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700
-                        {% elif forloop.counter == 3 %} bg-white dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/50
-                        {% else %} bg-gray-50 dark:bg-black/40 border border-gray-200 dark:border-gray-800 text-gray-400 font-bold text-xl
+                        {% if forloop.first %} bg-white border border-yellow-200
+                        {% elif forloop.counter == 2 %} bg-white border border-gray-200
+                        {% elif forloop.counter == 3 %} bg-white border border-amber-200
+                        {% else %} bg-gray-50 border border-gray-200 text-gray-400 font-bold text-xl
                         {% endif %}">
                         {% if forloop.first %}👑{% elif forloop.counter == 2 %}🥈{% elif forloop.counter == 3 %}🥉{% else %}#{{ forloop.counter }}{% endif %}
                     </div>
@@ -219,21 +207,21 @@
                     <div class="flex-1 w-full">
                         <div class="flex justify-between items-end mb-3">
                             <div>
-                                <h3 class="text-xl font-bold text-gray-900 dark:text-white flex items-center">
+                                <h3 class="text-xl font-bold text-gray-900 flex items-center">
                                     {{ candidate.name }}
                                     {% if forloop.first %}<span class="ml-3 text-[10px] uppercase tracking-widest bg-yellow-400 text-yellow-900 px-2 py-0.5 rounded-md font-bold">Winner</span>{% endif %}
                                 </h3>
                                 {% if candidate.description %}
-                                    <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">{{ candidate.description }}</p>
+                                    <p class="text-sm text-gray-500 mt-1">{{ candidate.description }}</p>
                                 {% endif %}
                             </div>
                             <div class="text-right">
-                                <span class="text-3xl font-black text-gray-900 dark:text-white">{{ candidate.decrypted_votes|default:0 }}</span>
+                                <span class="text-3xl font-black text-gray-900">{{ candidate.decrypted_votes|default:0 }}</span>
                                 <span class="text-xs text-gray-500 uppercase tracking-widest font-bold block">Votes</span>
                             </div>
                         </div>
 
-                        <div class="w-full bg-gray-200/50 dark:bg-gray-800/50 rounded-full h-3.5 overflow-hidden shadow-inner border border-gray-300/30 dark:border-gray-700/30">
+                        <div class="w-full bg-gray-200/50 rounded-full h-3.5 overflow-hidden shadow-inner border border-gray-300/30">
                             <div class="h-full rounded-full animate-fill shadow-sm
                                 {% if forloop.first %} bg-gradient-to-r from-yellow-400 to-orange-400
                                 {% else %} bg-gradient-to-r from-blue-500 to-cyan-400 {% endif %}" 
@@ -245,14 +233,14 @@
                 </div>
                 {% endfor %}
             {% else %}
-                <div class="glass-panel bg-white/50 dark:bg-white/5 rounded-[2rem] p-12 text-center border border-gray-200/50 dark:border-white/5">
+                <div class="glass-panel bg-white/80 rounded-[2rem] p-12 text-center border border-gray-200/80">
                     <p class="text-gray-500 font-medium">No votes recorded in this ledger.</p>
                 </div>
             {% endif %}
         </div>
         {% endif %}
 
-        <div class="mt-16 bg-slate-900 dark:bg-black border border-slate-800 rounded-3xl p-8 shadow-2xl relative overflow-hidden reveal-hidden group">
+        <div class="mt-16 bg-slate-900 border border-slate-800 rounded-3xl p-8 shadow-2xl relative overflow-hidden reveal-hidden group">
             <div class="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 blur-[40px] rounded-full pointer-events-none transition-transform group-hover:scale-150 duration-700"></div>
             
             <h3 class="text-white font-bold mb-2 flex items-center">
@@ -273,23 +261,6 @@
     </main>
 
     <script>
-        // Theme Toggle Logic
-        const themeToggleBtn = document.getElementById('theme-toggle');
-        const darkIcon = document.getElementById('theme-toggle-dark-icon');
-        const lightIcon = document.getElementById('theme-toggle-light-icon');
-
-        if (document.documentElement.classList.contains('dark')) { lightIcon.classList.remove('hidden'); } 
-        else { darkIcon.classList.remove('hidden'); }
-
-        themeToggleBtn.addEventListener('click', function() {
-            darkIcon.classList.toggle('hidden'); lightIcon.classList.toggle('hidden');
-            if (document.documentElement.classList.contains('dark')) {
-                document.documentElement.classList.remove('dark'); localStorage.setItem('color-theme', 'light');
-            } else {
-                document.documentElement.classList.add('dark'); localStorage.setItem('color-theme', 'dark');
-            }
-        });
-
         // Scroll Reveal Animation
         document.addEventListener("DOMContentLoaded", () => {
             const observer = new IntersectionObserver((entries) => {

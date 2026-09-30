@@ -1,14 +1,17 @@
+{% load static %}
 <!DOCTYPE html>
-<html lang="en" class="dark">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Voting Booth | {{ election.title }}</title>
+    <link rel="icon" type="image/png" sizes="32x32" href="{% static 'images/favicon.png' %}">
+    <link rel="icon" type="image/x-icon" href="{% static 'favicon.ico' %}">
+    <link rel="apple-touch-icon" href="{% static 'images/favicon.png' %}">
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
-            darkMode: 'class',
             theme: {
                 extend: {
                     fontFamily: {
@@ -18,7 +21,7 @@
                     colors: {
                         apple: {
                             light: '#f5f5f7',
-                            dark: '#000000',
+                            cardLight: 'rgba(255, 255, 255, 0.7)',
                         }
                     }
                 }
@@ -39,18 +42,12 @@
             -moz-osx-font-smoothing: grayscale;
         }
 
-        /* Apple-style Frosted Glass */
         .glass-panel {
             backdrop-filter: blur(20px);
             -webkit-backdrop-filter: blur(20px);
             box-shadow: 0 4px 24px rgba(0, 0, 0, 0.04);
         }
-        .dark .glass-panel {
-            box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
-            border-top: 1px solid rgba(255, 255, 255, 0.05);
-        }
 
-        /* Ambient Mesh Background Animation */
         .ambient-blob {
             position: absolute;
             border-radius: 50%;
@@ -59,7 +56,6 @@
             z-index: -1;
             animation: float 20s ease-in-out infinite alternate;
         }
-        .dark .ambient-blob { opacity: 0.15; filter: blur(100px); }
         
         .blob-1 { top: -10%; left: -10%; width: 50vw; height: 50vw; background: #3b82f6; animation-delay: 0s; }
         .blob-2 { top: 40%; right: -10%; width: 60vw; height: 60vw; background: #8b5cf6; animation-delay: -5s; }
@@ -72,7 +68,6 @@
             100% { transform: translate(0, -10%) scale(1); }
         }
 
-        /* Smooth Reveal */
         .reveal-hidden { 
             opacity: 0; 
             transform: translateY(40px) scale(0.98); 
@@ -80,18 +75,18 @@
         }
         .reveal-visible { opacity: 1; transform: translateY(0) scale(1); }
 
-        /* Custom Radio Button Styles */
-        input[type="radio"]:checked + label { border-color: #3b82f6; }
-        .dark input[type="radio"]:checked + label {
-            background-color: rgba(37, 99, 235, 0.1);
-            box-shadow: inset 0 0 0 1px #3b82f6, 0 0 20px rgba(37, 99, 235, 0.15);
-        }
-        html:not(.dark) input[type="radio"]:checked + label {
+        /* Custom Radio Card Selection Styles */
+        input[type="radio"]:checked + label {
+            border-color: #3b82f6 !important;
             background-color: #eff6ff;
-            box-shadow: inset 0 0 0 1px #3b82f6, 0 4px 15px rgba(37, 99, 235, 0.1);
+            box-shadow: inset 0 0 0 1px #3b82f6, 0 4px 15px rgba(37, 99, 235, 0.12);
         }
         input[type="radio"]:checked + label .radio-circle {
-            border-color: #3b82f6; background-color: #3b82f6;
+            border-color: #3b82f6;
+            background-color: #3b82f6;
+        }
+        input[type="radio"]:checked + label .radio-check {
+            opacity: 1;
         }
 
         /* --- PRINT STYLES --- */
@@ -116,14 +111,11 @@
         }
     </style>
 </head>
-<body class="bg-apple-light text-gray-900 dark:bg-apple-dark dark:text-gray-100 selection:bg-blue-500 selection:text-white">
+<body class="bg-apple-light text-gray-900 selection:bg-blue-500 selection:text-white">
 
     <script>
-        if (localStorage.getItem('color-theme') === 'dark' || (!('color-theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-            document.documentElement.classList.add('dark');
-        } else {
-            document.documentElement.classList.remove('dark');
-        }
+        document.documentElement.classList.remove('dark');
+        localStorage.removeItem('color-theme');
     </script>
 
     <div class="fixed inset-0 overflow-hidden pointer-events-none z-[-1] no-print">
@@ -132,78 +124,84 @@
         <div class="ambient-blob blob-3"></div>
     </div>
 
-    <nav class="fixed top-0 w-full z-50 glass-panel bg-white/70 dark:bg-black/50 border-b border-gray-200/50 dark:border-white/5 no-print">
+    <!-- Navigation Bar -->
+    <nav class="fixed top-0 w-full z-50 glass-panel bg-white/70 border-b border-gray-200/50 no-print">
         <div class="max-w-6xl mx-auto px-6 py-4 flex justify-between items-center">
-            <div class="flex items-center space-x-2 cursor-pointer" onclick="window.location.href='{% url 'home' %}'">
-                <div class="w-6 h-6 rounded-full bg-black dark:bg-white flex items-center justify-center transition-transform hover:scale-110">
-                    <span class="text-white dark:text-black font-bold text-xs">C</span>
-                </div>
+            <a href="{% url 'home' %}" class="flex items-center space-x-2 cursor-pointer">
+                <img src="{% static 'voting/images/chainvote-logo.png' %}" alt="ChainVote Logo" class="w-8 h-8 object-contain transition-transform hover:scale-110">
                 <span class="text-lg font-semibold tracking-tight">ChainVote</span>
-            </div>
+            </a>
             
-            <div class="flex items-center space-x-6">
-                <a href="{% url 'blockchain_explorer' election.id %}" class="flex items-center text-emerald-600 dark:text-emerald-500 font-bold mb-3 tracking-widest text-xs">
-                    <span class="w-1.5 h-1.5 bg-emerald-500 rounded-full mr-2 animate-pulse"></span> Ledger
-                </a>
-                <button id="theme-toggle" class="text-gray-600 hover:text-black dark:text-gray-500 dark:hover:text-white transition">
-                    <svg id="theme-toggle-dark-icon" class="hidden w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"></path></svg>
-                    <svg id="theme-toggle-light-icon" class="hidden w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z"></path></svg>
+            <div class="flex items-center space-x-4 md:space-x-6">
+                <!-- Bilingual Toggle -->
+                <button id="lang-toggle" onclick="toggleLanguage()" class="flex items-center space-x-1 px-3 py-1 rounded-full text-xs font-semibold bg-gray-100 hover:bg-gray-200 text-gray-700 transition border border-gray-200" aria-label="Switch language between English and Hindi">
+                    <span>🌐</span>
+                    <span id="lang-text">हिंदी</span>
                 </button>
+
+                <a href="{% url 'blockchain_explorer' election.id %}" class="flex items-center text-emerald-600 font-bold tracking-widest text-xs">
+                    <span class="w-1.5 h-1.5 bg-emerald-500 rounded-full mr-1.5 animate-pulse"></span>
+                    <span data-i18n="nav_ledger">Ledger</span>
+                </a>
             </div>
         </div>
     </nav>
 
+    <!-- Main Content -->
     <main class="max-w-2xl mx-auto px-4 pt-32 pb-24 relative z-10 reveal-hidden">
         
-        <a href="{% url 'home' %}" class="no-print text-slate-500 hover:text-slate-900 dark:hover:text-white transition flex items-center text-sm font-semibold mb-6 w-fit">
+        <a href="{% url 'home' %}" class="no-print text-slate-500 hover:text-slate-900 transition flex items-center text-sm font-semibold mb-6 w-fit">
             <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
-            Abort & Return
+            <span data-i18n="link_abort">Abort & Return</span>
         </a>
 
+        <!-- Success Receipt Modal & Flash Messages -->
         {% if messages %}
             {% for message in messages %}
                 {% if message.tags == 'success' %}
                     <div id="receiptModal" class="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 animate-[fadeIn_0.5s_ease-out]">
-                        <div class="absolute inset-0 bg-black/60 backdrop-blur-sm no-print"></div>
+                        <div class="absolute inset-0 bg-black/70 backdrop-blur-sm no-print"></div>
                         
-                        <div class="receipt-card bg-white dark:bg-[#0B1120] border border-gray-200 dark:border-gray-800 rounded-[2rem] p-8 md:p-12 shadow-2xl relative z-10 w-full max-w-lg text-center transform transition-all scale-100">
+                        <div class="receipt-card bg-white border border-gray-200/80 rounded-[2.5rem] p-8 md:p-12 shadow-2xl relative z-10 w-full max-w-lg text-center transform transition-all scale-100">
                             
-                            <div class="w-16 h-16 bg-emerald-100 dark:bg-emerald-900/30 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-sm border border-emerald-200 dark:border-emerald-800">
-                                <svg class="w-8 h-8 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                            <div class="w-16 h-16 bg-emerald-100 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-sm border border-emerald-200">
+                                <svg class="w-8 h-8 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
                             </div>
                             
-                            <h2 class="text-3xl font-black text-gray-900 dark:text-white mb-2 receipt-text">Vote Recorded</h2>
-                            <p class="text-gray-500 dark:text-gray-400 mb-8 font-medium receipt-text">{{ message }}</p>
+                            <h2 class="text-3xl font-black text-gray-900 mb-2 receipt-text" data-i18n="receipt_heading">Vote Successfully Cast!</h2>
+                            <p class="text-gray-600 mb-6 font-medium text-sm receipt-text">{{ message }}</p>
                             
-                            <div class="bg-gray-50 dark:bg-black/40 rounded-2xl p-6 text-left mb-8 border border-gray-200 dark:border-gray-800 shadow-inner dark:shadow-none">
-                                <div class="mb-5">
-                                    <p class="text-[10px] text-gray-500 uppercase tracking-widest font-bold mb-1">Network Status</p>
+                            <div class="bg-gray-50 rounded-2xl p-6 text-left mb-6 border border-gray-200 shadow-inner space-y-4">
+                                <div>
+                                    <p class="text-[10px] text-gray-500 uppercase tracking-widest font-bold mb-1" data-i18n="receipt_status_lbl">Network Status</p>
                                     <div class="flex items-center">
                                         <span class="w-2 h-2 bg-emerald-500 rounded-full animate-pulse mr-2 no-print"></span>
-                                        <p class="font-semibold text-gray-900 dark:text-white receipt-text text-sm">Block Mined Successfully</p>
+                                        <p class="font-semibold text-gray-900 receipt-text text-sm" data-i18n="receipt_mined_msg">Block Mined Successfully</p>
                                     </div>
                                 </div>
 
-                                <div class="mb-5">
-                                    <p class="text-[10px] text-gray-500 uppercase tracking-widest font-bold mb-1">Election Target</p>
-                                    <p class="font-mono font-semibold text-gray-900 dark:text-white receipt-text text-sm">{{ election.title }}</p>
+                                <div>
+                                    <p class="text-[10px] text-gray-500 uppercase tracking-widest font-bold mb-1" data-i18n="receipt_election_lbl">Election Title</p>
+                                    <p class="font-semibold text-gray-900 receipt-text text-sm">{{ election.title }}</p>
                                 </div>
                                 
                                 <div>
-                                    <p class="text-[10px] text-gray-500 uppercase tracking-widest font-bold mb-1">Timestamp (Local)</p>
-                                    <p class="font-mono text-gray-900 dark:text-white receipt-text text-sm" id="receiptTime"></p>
+                                    <p class="text-[10px] text-gray-500 uppercase tracking-widest font-bold mb-1" data-i18n="receipt_time_lbl">Timestamp (Local)</p>
+                                    <p class="font-mono text-gray-900 receipt-text text-sm" id="receiptTime"></p>
                                 </div>
                             </div>
 
-                            <p class="text-[10px] text-gray-400 dark:text-gray-500 mb-8 italic">Please save or print this receipt. Your identity has been zero-knowledge hashed and cannot be retrieved by our servers.</p>
+                            <p class="text-xs text-gray-500 mb-6 leading-relaxed" data-i18n="receipt_note">
+                                Please save or print this official confirmation. Your voter identity is protected by zero-knowledge hashing.
+                            </p>
 
-                            <div class="flex flex-col sm:flex-row gap-4 no-print">
-                                <button onclick="window.print()" class="flex-1 bg-blue-600 hover:bg-blue-500 text-white font-bold py-3.5 rounded-xl transition shadow-md flex justify-center items-center">
-                                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
-                                    Print Receipt
+                            <div class="flex flex-col sm:flex-row gap-3 no-print">
+                                <button onclick="window.print()" class="flex-1 bg-white hover:bg-gray-50 text-gray-800 border border-gray-300 font-bold py-3.5 px-4 rounded-xl transition flex justify-center items-center text-sm shadow-sm">
+                                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
+                                    <span data-i18n="btn_print_receipt">Print Receipt</span>
                                 </button>
-                                <a href="{% url 'home' %}" class="flex-1 bg-gray-200 dark:bg-gray-800 hover:bg-gray-300 dark:hover:bg-gray-700 text-gray-900 dark:text-white font-bold py-3.5 rounded-xl transition flex justify-center items-center">
-                                    Return to Network
+                                <a href="{% url 'home' %}" class="flex-1 bg-black text-white hover:opacity-90 font-bold py-3.5 px-4 rounded-xl transition flex justify-center items-center text-sm shadow-sm">
+                                    <span data-i18n="btn_return_network">Return to Network</span>
                                 </a>
                             </div>
                         </div>
@@ -211,61 +209,111 @@
                     <style>@keyframes fadeIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }</style>
                     <script>document.getElementById('receiptTime').innerText = new Date().toLocaleString();</script>
                 {% else %}
-                    <div class="p-4 rounded-lg font-mono text-sm border shadow-sm bg-red-50 border-red-200 text-red-700 dark:bg-red-950/50 dark:border-red-900 dark:text-red-400 no-print">
+                    <div class="p-4 rounded-2xl font-mono text-sm border shadow-sm bg-red-50 border-red-200 text-red-700 no-print mb-6">
                         > SECURITY_ALERT: {{ message }}
                     </div>
                 {% endif %}
             {% endfor %}
         {% endif %}
 
-        <div class="bg-white/80 dark:bg-[#0B1120]/90 glass-panel border border-slate-200 dark:border-slate-800 rounded-[2rem] shadow-xl dark:shadow-2xl overflow-hidden no-print">
+        <!-- Client-side Validation Banner (Hidden initially) -->
+        <div id="validationAlert" class="hidden p-4 rounded-2xl font-medium text-sm border shadow-sm bg-amber-50 border-amber-300 text-amber-800 no-print mb-6 flex items-center">
+            <span class="mr-2 text-base">⚠️</span>
+            <span id="validationAlertMsg">Please complete all fields before reviewing your vote.</span>
+        </div>
+
+        <!-- Voting Card Container -->
+        <div class="bg-white/80 glass-panel border border-slate-200/80 rounded-[2.5rem] shadow-xl overflow-hidden no-print">
             
-            <div class="p-8 md:p-10 border-b border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-gradient-to-b dark:from-slate-900/50 dark:to-[#0B1120]">
-                
-                <h1 class="text-3xl font-black text-slate-900 dark:text-white tracking-tight">{{ election.title }}</h1>
-                <p class="text-slate-600 dark:text-slate-400 mt-2 font-medium">{{ election.description }}</p>
+            <!-- Election Header -->
+            <div class="p-8 md:p-10 border-b border-slate-200/80 bg-white/50">
+                <div class="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700 border border-emerald-300 mb-3">
+                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5 animate-pulse"></span>
+                    <span data-i18n="badge_active_booth">Active Voting Booth</span>
+                </div>
+                <h1 class="text-3xl md:text-4xl font-black text-slate-900 tracking-tight">{{ election.title }}</h1>
+                <p class="text-slate-600 mt-2 font-medium text-sm md:text-base leading-relaxed">{{ election.description }}</p>
             </div>
 
-            <form id="voteForm" method="POST" action="{% url 'cast_vote' election.id %}" class="p-8 md:p-10" onsubmit="animateSubmit(event)">
+            <!-- Form -->
+            <form id="voteForm" method="POST" action="{% url 'cast_vote' election.id %}" class="p-8 md:p-10" onsubmit="event.preventDefault(); openReviewModal();">
                 {% csrf_token %}
                 
-                <div class="mb-12">
-                    <h2 class="text-sm font-bold text-blue-600 dark:text-blue-400 uppercase tracking-widest mb-4 flex items-center">
-                        <span class="bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300 w-6 h-6 flex items-center justify-center rounded-full text-xs mr-3 border border-blue-200 dark:border-blue-800">1</span>
-                        Verify Identity
-                    </h2>
+                <!-- Step 1: Voter Identity -->
+                <div class="mb-10">
+                    <div class="flex items-center mb-3">
+                        <span class="bg-blue-100 text-blue-700 w-7 h-7 flex items-center justify-center rounded-full text-xs font-bold mr-3 border border-blue-200">1</span>
+                        <h2 class="text-sm font-bold text-blue-600 uppercase tracking-widest" data-i18n="step1_heading">Verify Your Identity</h2>
+                    </div>
                     
-                    <div class="bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-inner dark:shadow-none">
-                        <label class="block text-slate-700 dark:text-slate-300 text-sm font-semibold mb-2" for="aadhaar">Unique Voter ID (Aadhaar / Roll No.)</label>
-                        <input type="password" name="aadhaar" id="aadhaar" required
-                               class="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-4 py-3 text-slate-900 dark:text-white font-mono placeholder-slate-400 dark:placeholder-slate-600 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:focus:ring-blue-500 transition shadow-sm"
-                               placeholder="Enter ID...">
-                        <p class="text-[11px] text-slate-500 dark:text-slate-500 mt-3 font-mono flex items-start leading-relaxed">
-                            <svg class="w-4 h-4 text-emerald-500 mr-1.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
-                            Zero-Knowledge Proof: Your ID is run through a one-way SHA-256 hash. The raw number is NEVER saved.
+                    <div class="bg-slate-50 border border-slate-200 rounded-2xl p-6 shadow-inner">
+                        <label class="block text-slate-800 text-sm font-semibold mb-2" for="aadhaar" data-i18n="label_voter_id">Unique Voter ID (Aadhaar / Roll No.)</label>
+                        
+                        <div class="relative">
+                            <input type="password" name="aadhaar" id="aadhaar" required
+                                   minlength="10" maxlength="10" pattern="[A-Za-z0-9]{10}"
+                                   class="w-full bg-white border border-slate-300 rounded-xl pl-4 pr-12 py-3.5 text-slate-900 font-mono placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition shadow-sm text-base"
+                                   placeholder="Enter 10-character ID..."
+                                   data-i18n-placeholder="ph_voter_id">
+                            
+                            <button 
+                                type="button" 
+                                id="toggleAadhaarBtn"
+                                onclick="togglePasswordVisibility('aadhaar', this)" 
+                                class="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 p-1.5 focus:outline-none"
+                                aria-label="Show or hide voter ID"
+                                title="Show/Hide Voter ID"
+                            >
+                                <svg class="w-5 h-5 eye-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                </svg>
+                                <svg class="w-5 h-5 eye-slash-icon hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18" />
+                                </svg>
+                            </button>
+                        </div>
+                        
+                        <p class="text-xs text-slate-500 mt-3 flex items-start leading-relaxed" data-i18n="zkp_explanation">
+                            <svg class="w-4 h-4 text-emerald-500 mr-1.5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+                            Privacy Protected: Your ID is converted into a secure one-way hash. Your raw ID is never stored.
                         </p>
                     </div>
                 </div>
 
-                <div class="mb-12">
-                    <h2 class="text-sm font-bold text-blue-600 dark:text-blue-400 uppercase tracking-widest mb-4 flex items-center">
-                        <span class="bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300 w-6 h-6 flex items-center justify-center rounded-full text-xs mr-3 border border-blue-200 dark:border-blue-800">2</span>
-                        Select Candidate
-                    </h2>
+                <!-- Step 2: Select Candidate -->
+                <div class="mb-10">
+                    <div class="flex items-center mb-3">
+                        <span class="bg-blue-100 text-blue-700 w-7 h-7 flex items-center justify-center rounded-full text-xs font-bold mr-3 border border-blue-200">2</span>
+                        <h2 class="text-sm font-bold text-blue-600 uppercase tracking-widest" data-i18n="step2_heading">Select Candidate</h2>
+                    </div>
                     
-                    <div class="space-y-3">
+                    <p class="text-xs text-slate-500 mb-4" data-i18n="select_candidate_hint">Choose one candidate from the options below:</p>
+
+                    <div class="space-y-3" role="radiogroup" aria-label="Candidates">
                         {% for candidate in candidates %}
-                        <div class="relative group">
+                        <div class="relative group focus-within:ring-2 focus-within:ring-blue-500 rounded-2xl">
                             <input class="sr-only peer" type="radio" name="candidate_id" value="{{ candidate.id }}" id="candidate_{{ candidate.id }}" required>
-                            <label class="flex p-5 cursor-pointer bg-white dark:bg-transparent border border-slate-200 dark:border-slate-800 rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-900/50 transition shadow-sm dark:shadow-none" for="candidate_{{ candidate.id }}">
-                                <div class="w-5 h-5 rounded-full border-2 border-slate-300 dark:border-slate-600 mr-5 flex-shrink-0 radio-circle flex items-center justify-center mt-0.5 transition bg-white dark:bg-transparent">
-                                    <div class="w-2.5 h-2.5 bg-white rounded-full opacity-0 peer-checked:opacity-100 transition-opacity"></div>
+                            
+                            <label class="flex items-center p-5 cursor-pointer bg-white border-2 border-slate-200 rounded-2xl hover:bg-slate-50 transition duration-200 shadow-sm" for="candidate_{{ candidate.id }}">
+                                
+                                <!-- Candidate Avatar Initials -->
+                                <div class="w-12 h-12 rounded-2xl bg-blue-100 text-blue-700 font-bold text-lg flex items-center justify-center mr-4 flex-shrink-0 border border-blue-200">
+                                    {{ candidate.name|slice:":1" }}
                                 </div>
-                                <div>
-                                    <h3 class="text-slate-900 dark:text-white font-bold text-lg">{{ candidate.name }}</h3>
+                                
+                                <div class="flex-1 min-w-0 pr-3">
+                                    <h3 class="text-slate-900 font-bold text-lg leading-tight candidate-name">{{ candidate.name }}</h3>
                                     {% if candidate.description %}
-                                        <p class="text-slate-500 dark:text-slate-400 text-sm mt-1 leading-relaxed">{{ candidate.description }}</p>
+                                        <p class="text-slate-500 text-sm mt-0.5 leading-relaxed candidate-desc">{{ candidate.description }}</p>
+                                    {% else %}
+                                        <p class="candidate-desc hidden"></p>
                                     {% endif %}
+                                </div>
+
+                                <!-- Custom Selection Indicator -->
+                                <div class="w-6 h-6 rounded-full border-2 border-slate-300 flex-shrink-0 radio-circle flex items-center justify-center transition bg-white">
+                                    <div class="w-2.5 h-2.5 bg-white rounded-full opacity-0 radio-check transition-opacity"></div>
                                 </div>
                             </label>
                         </div>
@@ -273,49 +321,316 @@
                     </div>
                 </div>
 
-                <button type="submit" id="submitBtn" class="w-full bg-slate-900 hover:bg-slate-800 dark:bg-blue-600 dark:hover:bg-blue-500 text-white font-bold text-lg py-4 rounded-2xl transition duration-300 shadow-md dark:shadow-[0_0_20px_rgba(37,99,235,0.3)] flex justify-center items-center group">
-                    <svg class="w-5 h-5 mr-2 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
-                    <span id="btnText">Encrypt & Commit to Ledger</span>
+                <!-- Step 3: Review Button (Opens Review Modal) -->
+                <button type="button" id="submitBtn" onclick="openReviewModal()" class="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold text-lg py-4 rounded-2xl transition duration-300 shadow-md flex justify-center items-center group">
+                    <svg class="w-5 h-5 mr-2 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path></svg>
+                    <span id="btnText" data-i18n="btn_review">Review Your Vote →</span>
                 </button>
             </form>
         </div>
     </main>
 
+    <!-- Review-and-Confirm Modal (Client-side pre-submission check) -->
+    <div id="reviewModal" class="hidden fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6" role="dialog" aria-modal="true" aria-labelledby="reviewTitle">
+        <!-- Backdrop -->
+        <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" onclick="closeReviewModal()"></div>
+        
+        <!-- Modal Card -->
+        <div class="bg-white border border-gray-200/80 rounded-[2.5rem] p-7 md:p-10 shadow-2xl relative z-10 w-full max-w-lg text-left transform transition-all">
+            
+            <div class="flex items-center space-x-3 mb-4">
+                <div class="w-10 h-10 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-lg">
+                    ✓
+                </div>
+                <div>
+                    <h3 id="reviewTitle" class="text-2xl font-black text-gray-900" data-i18n="modal_review_title">Review Your Ballot</h3>
+                    <p class="text-xs text-gray-500" data-i18n="modal_review_subtitle">Confirm your choice before it is committed to the blockchain</p>
+                </div>
+            </div>
+
+            <!-- Review Summary Container -->
+            <div class="space-y-4 my-6">
+                <!-- Election -->
+                <div class="p-4 rounded-2xl bg-gray-50 border border-gray-200">
+                    <p class="text-[10px] uppercase font-bold text-gray-400 tracking-wider mb-1" data-i18n="review_election_lbl">Election</p>
+                    <p class="font-bold text-gray-900 text-base">{{ election.title }}</p>
+                </div>
+
+                <!-- Selected Candidate Card -->
+                <div class="p-4 rounded-2xl bg-blue-50 border-2 border-blue-200">
+                    <p class="text-[10px] uppercase font-bold text-blue-600 tracking-wider mb-2" data-i18n="review_selected_candidate_lbl">Selected Candidate</p>
+                    <div class="flex items-center">
+                        <div id="reviewCandidateInitial" class="w-12 h-12 rounded-xl bg-blue-600 text-white font-bold text-lg flex items-center justify-center mr-3 flex-shrink-0 shadow-sm">
+                            A
+                        </div>
+                        <div>
+                            <h4 id="reviewCandidateName" class="text-lg font-bold text-gray-900 leading-tight"></h4>
+                            <p id="reviewCandidateDesc" class="text-xs text-gray-600 mt-0.5"></p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Masked Voter ID -->
+                <div class="p-4 rounded-2xl bg-gray-50 border border-gray-200 flex justify-between items-center">
+                    <div>
+                        <p class="text-[10px] uppercase font-bold text-gray-400 tracking-wider mb-0.5" data-i18n="review_voter_id_lbl">Voter Identifier</p>
+                        <p id="reviewVoterIdMasked" class="font-mono text-sm text-gray-900 font-semibold">•••• ••••</p>
+                    </div>
+                    <span class="text-xs font-semibold px-2.5 py-1 rounded-full bg-blue-100 text-blue-700 border border-blue-300">
+                        <span data-i18n="badge_masked">Masked</span>
+                    </span>
+                </div>
+            </div>
+
+            <!-- Plain Warning Notice -->
+            <div class="p-3.5 bg-amber-50 border border-amber-200 rounded-xl mb-6 text-xs text-amber-800 flex items-start">
+                <svg class="w-4 h-4 mr-2 flex-shrink-0 mt-0.5 text-amber-600" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path></svg>
+                <span data-i18n="review_notice">Note: Once confirmed, your vote is permanently recorded and cannot be altered or re-cast.</span>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="flex flex-col sm:flex-row gap-3">
+                <button type="button" id="changeSelectionBtn" onclick="closeReviewModal()" class="flex-1 py-3.5 px-4 rounded-xl border border-gray-300 text-gray-700 font-bold hover:bg-gray-100 transition text-center text-sm">
+                    <span data-i18n="btn_change_selection">← Change Selection</span>
+                </button>
+                <button type="button" id="confirmSubmitBtn" onclick="executeConfirmedVote()" class="flex-1 py-3.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold transition shadow-lg shadow-emerald-600/30 flex items-center justify-center text-sm">
+                    <span id="confirmBtnText" data-i18n="btn_confirm_submit">Confirm & Submit Vote</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
     <script>
-        const themeToggleBtn = document.getElementById('theme-toggle');
-        const darkIcon = document.getElementById('theme-toggle-dark-icon');
-        const lightIcon = document.getElementById('theme-toggle-light-icon');
-
-        if (document.documentElement.classList.contains('dark')) { lightIcon.classList.remove('hidden'); } 
-        else { darkIcon.classList.remove('hidden'); }
-
-        themeToggleBtn.addEventListener('click', function() {
-            darkIcon.classList.toggle('hidden'); lightIcon.classList.toggle('hidden');
-            if (document.documentElement.classList.contains('dark')) {
-                document.documentElement.classList.remove('dark'); localStorage.setItem('color-theme', 'light');
+        // Password / ID Visibility Toggle
+        function togglePasswordVisibility(fieldId, btn) {
+            const input = document.getElementById(fieldId);
+            const eyeIcon = btn.querySelector('.eye-icon');
+            const eyeSlashIcon = btn.querySelector('.eye-slash-icon');
+            
+            if (input.type === 'password') {
+                input.type = 'text';
+                eyeIcon.classList.add('hidden');
+                eyeSlashIcon.classList.remove('hidden');
+                btn.setAttribute('aria-label', 'Hide voter ID');
             } else {
-                document.documentElement.classList.add('dark'); localStorage.setItem('color-theme', 'dark');
+                input.type = 'password';
+                eyeIcon.classList.remove('hidden');
+                eyeSlashIcon.classList.add('hidden');
+                btn.setAttribute('aria-label', 'Show voter ID');
             }
-        });
-
-        document.addEventListener("DOMContentLoaded", () => {
-            setTimeout(() => { document.querySelector('.reveal-hidden').classList.add('reveal-visible'); }, 100);
-        });
-
-        function animateSubmit(e) {
-            e.preventDefault(); 
-            const btn = document.getElementById('submitBtn');
-            const form = document.getElementById('voteForm');
-            
-            btn.classList.remove('bg-slate-900', 'hover:bg-slate-800', 'dark:bg-blue-600', 'dark:hover:bg-blue-500');
-            btn.classList.add('bg-emerald-600', 'hover:bg-emerald-600');
-            btn.style.boxShadow = "0 0 30px rgba(16, 185, 129, 0.5)";
-            
-            document.getElementById('btnText').innerHTML = "GENERATING SHA-256 HASH...";
-            
-            setTimeout(() => { document.getElementById('btnText').innerHTML = "MINING BLOCK..."; }, 800);
-            setTimeout(() => { form.submit(); }, 1500);
         }
+
+        // Review Modal Handlers
+        function openReviewModal() {
+            const aadhaarInput = document.getElementById('aadhaar');
+            const selectedRadio = document.querySelector('input[name="candidate_id"]:checked');
+            const validationAlert = document.getElementById('validationAlert');
+            const validationMsg = document.getElementById('validationAlertMsg');
+            const currentLang = localStorage.getItem('preferred-lang') || 'en';
+            const dict = translations[currentLang] || translations.en;
+            const voterIdPattern = /^[A-Za-z0-9]{10}$/;
+            const rawId = aadhaarInput.value;
+
+            // Validation 1: Voter ID must not be empty
+            if (!rawId) {
+                validationAlert.classList.remove('hidden');
+                validationMsg.dataset.errorKey = 'alert_enter_id';
+                validationMsg.textContent = dict.alert_enter_id;
+                aadhaarInput.focus();
+                return;
+            }
+
+            // Validation 2: Voter ID must be exactly 10 alphanumeric characters
+            if (!voterIdPattern.test(rawId)) {
+                validationAlert.classList.remove('hidden');
+                validationMsg.dataset.errorKey = 'alert_invalid_id';
+                validationMsg.textContent = dict.alert_invalid_id;
+                aadhaarInput.focus();
+                return;
+            }
+
+            // Validation 3: Candidate must be chosen
+            if (!selectedRadio) {
+                validationAlert.classList.remove('hidden');
+                validationMsg.dataset.errorKey = 'alert_select_candidate';
+                validationMsg.textContent = dict.alert_select_candidate;
+                const firstRadio = document.querySelector('input[name="candidate_id"]');
+                if (firstRadio) firstRadio.focus();
+                return;
+            }
+
+            // Hide any validation alert
+            delete validationMsg.dataset.errorKey;
+            validationAlert.classList.add('hidden');
+
+            // Extract candidate information from label
+            const label = document.querySelector(`label[for="${selectedRadio.id}"]`);
+            const candName = label ? label.querySelector('.candidate-name').textContent.trim() : 'Selected Candidate';
+            const candDesc = label ? label.querySelector('.candidate-desc').textContent.trim() : '';
+
+            // Populate Review Modal fields
+            document.getElementById('reviewCandidateName').textContent = candName;
+            document.getElementById('reviewCandidateDesc').textContent = candDesc;
+            document.getElementById('reviewCandidateInitial').textContent = candName.charAt(0).toUpperCase() || 'C';
+
+            // Mask Voter ID: show only last 4 digits
+            let masked = '•••• •••• ';
+            if (rawId.length > 4) {
+                masked += rawId.slice(-4);
+            } else {
+                masked = '•••• ' + rawId;
+            }
+            document.getElementById('reviewVoterIdMasked').textContent = masked;
+
+            // Show Review Modal (Does NOT submit or mutate database)
+            document.getElementById('reviewModal').classList.remove('hidden');
+        }
+
+        function closeReviewModal() {
+            // Dismiss review modal without submitting
+            document.getElementById('reviewModal').classList.add('hidden');
+        }
+
+        // Final Explicit Confirmation Submission
+        let isSubmitting = false;
+        function executeConfirmedVote() {
+            if (isSubmitting) return; // Prevent double submission
+            isSubmitting = true;
+
+            const confirmBtn = document.getElementById('confirmSubmitBtn');
+            const changeBtn = document.getElementById('changeSelectionBtn');
+            const confirmText = document.getElementById('confirmBtnText');
+            const currentLang = localStorage.getItem('preferred-lang') || 'en';
+            const dict = translations[currentLang] || translations.en;
+
+            // Disable buttons to prevent double click
+            confirmBtn.disabled = true;
+            changeBtn.disabled = true;
+            confirmBtn.classList.add('opacity-75', 'cursor-not-allowed');
+
+            confirmText.textContent = dict.recording_vote;
+
+            // Trigger actual form submission
+            const form = document.getElementById('voteForm');
+            form.submit();
+        }
+
+        // Bilingual Dictionary & Engine
+        const translations = {
+            en: {
+                nav_ledger: 'Ledger',
+                link_abort: 'Abort & Return',
+                badge_active_booth: 'Active Voting Booth',
+                step1_heading: 'Verify Your Identity',
+                label_voter_id: 'Unique Voter ID (Aadhaar / Roll No.)',
+                ph_voter_id: 'Enter ID...',
+                zkp_explanation: 'Privacy Protected: Your ID is converted into a secure one-way hash. Your raw ID is never stored.',
+                step2_heading: 'Select Candidate',
+                select_candidate_hint: 'Choose one candidate from the options below:',
+                btn_review: 'Review Your Vote →',
+                modal_review_title: 'Review Your Ballot',
+                modal_review_subtitle: 'Confirm your choice before it is committed to the blockchain',
+                review_election_lbl: 'Election',
+                review_selected_candidate_lbl: 'Selected Candidate',
+                review_voter_id_lbl: 'Voter Identifier',
+                badge_masked: 'Masked',
+                badge_encrypted: 'Masked',
+                review_notice: 'Note: Once confirmed, your vote is permanently recorded and cannot be altered or re-cast.',
+                btn_change_selection: '← Change Selection',
+                btn_confirm_submit: 'Confirm & Submit Vote',
+                recording_vote: 'Encrypting & Recording Vote...',
+                alert_enter_id: 'Please enter your Unique Voter ID before proceeding.',
+                alert_invalid_id: 'Voter ID must be exactly 10 alphanumeric characters (A-Z, 0-9) with no spaces or symbols.',
+                alert_select_candidate: 'Please select a candidate before proceeding.',
+                receipt_heading: 'Vote Successfully Cast!',
+                receipt_status_lbl: 'Network Status',
+                receipt_mined_msg: 'Block Mined Successfully',
+                receipt_election_lbl: 'Election Title',
+                receipt_time_lbl: 'Timestamp (Local)',
+                receipt_note: 'Please save or print this official confirmation. Your voter identity is protected by zero-knowledge hashing.',
+                btn_print_receipt: 'Print Receipt',
+                btn_return_network: 'Return to Network',
+                lang_btn: 'हिंदी'
+            },
+            hi: {
+                nav_ledger: 'लेजर ऑडिट',
+                link_abort: 'वापस जाएं (रद्द करें)',
+                badge_active_booth: 'सक्रिय मतदान केंद्र',
+                step1_heading: 'चरण 1: पहचान सत्यापित करें',
+                label_voter_id: 'विशिष्ट वोटर पहचान (आधार / रोल नंबर)',
+                ph_voter_id: '10-अंकीय पहचान दर्ज करें...',
+                zkp_explanation: 'गोपनीयता सुरक्षित: आपकी आईडी सुरक्षित कोड में बदली जाती है। आपका मूल नंबर कभी सुरक्षित नहीं किया जाता।',
+                step2_heading: 'चरण 2: उम्मीदवार का चयन करें',
+                select_candidate_hint: 'नीचे दिए गए विकल्पों में से किसी एक उम्मीदवार को चुनें:',
+                btn_review: 'अपने वोट की समीक्षा करें →',
+                modal_review_title: 'अपने मत की समीक्षा करें',
+                modal_review_subtitle: 'ब्लॉकचेन पर दर्ज करने से पहले अपनी पसंद की पुष्टि करें',
+                review_election_lbl: 'चुनाव',
+                review_selected_candidate_lbl: 'चयनित उम्मीदवार',
+                review_voter_id_lbl: 'वोटर पहचान',
+                badge_masked: 'मास्क किया गया',
+                badge_encrypted: 'मास्क किया गया',
+                review_notice: 'सूचना: पुष्टि होने के बाद, आपका वोट स्थायी रूप से दर्ज हो जाएगा और इसे बदला नहीं जा सकेगा।',
+                btn_change_selection: '← पसंद बदलें',
+                btn_confirm_submit: 'पुष्टि करें और वोट दर्ज करें',
+                recording_vote: 'वोट सुरक्षित रूप से दर्ज हो रहा है...',
+                alert_enter_id: 'आगे बढ़ने से पहले कृपया अपनी वोटर आईडी दर्ज करें।',
+                alert_invalid_id: 'मतदाता आईडी ठीक 10 अक्षरों (A-Z, 0-9) की होनी चाहिए, बिना किसी स्पेस या विशेष चिन्ह के।',
+                alert_select_candidate: 'आगे बढ़ने से पहले कृपया किसी एक उम्मीदवार का चयन करें।',
+                receipt_heading: 'मत सफलतापूर्वक दर्ज हुआ!',
+                receipt_status_lbl: 'नेटवर्क स्थिति',
+                receipt_mined_msg: 'ब्लॉक सफलतापूर्वक माइन हुआ (Block Mined Successfully)',
+                receipt_election_lbl: 'चुनाव का नाम',
+                receipt_time_lbl: 'समय (स्थानीय)',
+                receipt_note: 'कृपया इस आधिकारिक रसीद को सुरक्षित रखें या प्रिंट करें। शून्य-ज्ञान तकनीक द्वारा आपकी पहचान सुरक्षित है।',
+                btn_print_receipt: 'रसीद प्रिंट करें',
+                btn_return_network: 'होमपेज पर लौटें',
+                lang_btn: 'English'
+            }
+        };
+
+        function setLanguage(lang) {
+            localStorage.setItem('preferred-lang', lang);
+            document.documentElement.lang = lang;
+            const dict = translations[lang] || translations.en;
+            
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                const key = el.getAttribute('data-i18n');
+                if (dict[key]) el.textContent = dict[key];
+            });
+
+            document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+                const key = el.getAttribute('data-i18n-placeholder');
+                if (dict[key]) el.setAttribute('placeholder', dict[key]);
+            });
+
+            const validationMsg = document.getElementById('validationAlertMsg');
+            if (validationMsg && validationMsg.dataset.errorKey) {
+                const errKey = validationMsg.dataset.errorKey;
+                if (dict[errKey]) validationMsg.textContent = dict[errKey];
+            }
+
+            const langText = document.getElementById('lang-text');
+            if (langText) langText.textContent = dict.lang_btn;
+        }
+
+        function toggleLanguage() {
+            const currentLang = localStorage.getItem('preferred-lang') || 'en';
+            const nextLang = currentLang === 'en' ? 'hi' : 'en';
+            setLanguage(nextLang);
+        }
+
+        // Initialize Page
+        document.addEventListener("DOMContentLoaded", () => {
+            const savedLang = localStorage.getItem('preferred-lang') || 'en';
+            setLanguage(savedLang);
+
+            setTimeout(() => {
+                const el = document.querySelector('.reveal-hidden');
+                if (el) el.classList.add('reveal-visible');
+            }, 100);
+        });
     </script>
 </body>
 </html>
