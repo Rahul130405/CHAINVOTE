@@ -99,17 +99,18 @@ def election_detail(request, election_id):
         'user_vote': user_vote,
     })
 
-VOTER_ID_REGEX = re.compile(r'^[A-Za-z0-9]{10}$')
+VOTER_ID_REGEX = re.compile(r'^(?=.*[A-Za-z])(?=.*[0-9])[A-Za-z0-9]{10}$')
 
 def validate_voter_id(identity):
     """
-    Strictly validates that a voter ID consists of exactly 10 alphanumeric characters (A-Z, a-z, 0-9).
-    No spaces, hyphens, or special characters are permitted.
+    Strictly validates that a voter ID consists of exactly 10 alphanumeric characters (A-Z, a-z, 0-9),
+    containing at least one letter and at least one numeric digit.
+    Surrounding whitespace is trimmed, but internal whitespace and special characters are rejected.
     Returns True if valid, False otherwise.
     """
     if not identity or not isinstance(identity, str):
         return False
-    return bool(VOTER_ID_REGEX.match(identity))
+    return bool(VOTER_ID_REGEX.match(identity.strip()))
 
 def hash_identity(identity):
     return hashlib.sha256(identity.encode()).hexdigest()
@@ -129,13 +130,14 @@ def cast_vote(request, election_id):
         ip = ip.split(',')[0].strip()
 
     # 🧾 Get ID (Aadhaar/College ID)
-    identity = request.POST.get("aadhaar")
-    if not identity:
+    raw_identity = request.POST.get("aadhaar")
+    if not raw_identity or not raw_identity.strip():
         messages.error(request, "ID is required")
         return redirect('election_detail', election_id=election_id)
 
+    identity = raw_identity.strip()
     if not validate_voter_id(identity):
-        messages.error(request, "Invalid Voter ID: Must be exactly 10 alphanumeric characters.")
+        messages.error(request, "Voter ID must contain both letters and numbers (alphanumeric only).")
         return redirect('election_detail', election_id=election_id)
 
     # 🔐 Hash identity
@@ -325,13 +327,14 @@ def api_cast_vote(request, election_id):
     """POST /api/elections/<id>/vote/"""
     election = get_object_or_404(Election, id=election_id)
 
-    identity = request.data.get("aadhaar")
-    if not identity:
+    raw_identity = request.data.get("aadhaar")
+    if not raw_identity or (isinstance(raw_identity, str) and not raw_identity.strip()):
         return Response({'error': 'ID (aadhaar) is required.'}, status=status.HTTP_400_BAD_REQUEST)
 
-    if not validate_voter_id(identity):
-        return Response({'error': 'Invalid Voter ID: Must be exactly 10 alphanumeric characters.'}, status=status.HTTP_400_BAD_REQUEST)
+    if not isinstance(raw_identity, str) or not validate_voter_id(raw_identity):
+        return Response({'error': 'Voter ID must contain both letters and numbers (alphanumeric only).'}, status=status.HTTP_400_BAD_REQUEST)
 
+    identity = raw_identity.strip()
     voter_hash = hash_identity(identity)
 
     candidate_id = request.data.get("candidate_id")

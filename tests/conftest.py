@@ -11,9 +11,12 @@ Provides:
 """
 
 import hashlib
+import os
 import uuid
 from datetime import timedelta
 import pytest
+
+os.environ.setdefault("SE_OFFLINE", "true")
 from django.contrib.auth.models import User
 from django.core.cache import cache
 from django.utils import timezone
@@ -178,10 +181,11 @@ def unique_voter_id():
     """
     Returns a callable factory generating unique synthetic voter IDs
     to avoid collisions across test runs without using real identities.
-    Generates strictly valid 10-character alphanumeric IDs (A-Z, 0-9).
+    Generates strictly valid 10-character alphanumeric IDs (A-Z, 0-9),
+    guaranteeing at least one letter and at least one digit.
     """
     def _generator():
-        return f"V{uuid.uuid4().hex[:9].upper()}"
+        return f"V1{uuid.uuid4().hex[:8].upper()}"
     return _generator
 
 
