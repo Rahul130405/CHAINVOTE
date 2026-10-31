@@ -15,6 +15,10 @@
             <p class="text-sm text-gray-600 mt-1">Configure elections, review schedules, and manage candidate rosters.</p>
         </div>
         <div class="flex items-center space-x-3">
+            <a href="#soc-threat-section" id="btn-jump-soc" class="inline-flex items-center space-x-2 bg-red-50 hover:bg-red-100 text-red-700 font-semibold text-sm px-4 py-2.5 rounded-xl border border-red-200 shadow-sm transition-all">
+                <span class="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
+                <span>SOC Operations</span>
+            </a>
             <a href="{% url 'manage_election_create' %}" id="btn-create-election" class="inline-flex items-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm px-5 py-2.5 rounded-xl shadow-sm transition-all transform hover:scale-[1.02] active:scale-[0.98]">
                 <span>+</span>
                 <span>Create New Election</span>
@@ -125,6 +129,87 @@
                 </a>
             </div>
         {% endif %}
+    </div>
+
+    <!-- SOC Threat Operations Section -->
+    <div id="soc-threat-section" class="space-y-6 pt-4">
+        <!-- Section Header Card -->
+        <div class="bg-white/80 glass-panel border border-gray-200/70 rounded-2xl p-6 sm:p-8 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+            <div>
+                <div class="inline-flex items-center space-x-2 px-3 py-1 rounded-full text-xs font-semibold bg-red-50 text-red-700 border border-red-200 mb-2">
+                    <span class="w-2 h-2 bg-red-500 rounded-full animate-pulse mr-1"></span>
+                    <span>SOC Active</span>
+                </div>
+                <h2 class="text-2xl font-extrabold tracking-tight text-gray-900" id="soc-heading">Threat Operations</h2>
+                <p class="text-sm text-gray-600 mt-1 max-w-xl">Real-time monitoring of network anomalies, duplicate vote attempts, and unauthorized blockchain access.</p>
+            </div>
+            
+            <div class="flex items-center space-x-5 bg-gray-50/80 border border-gray-200/80 p-4 rounded-2xl shadow-inner w-full md:w-auto">
+                <div class="w-12 h-12 rounded-full border border-red-300 bg-red-50 flex items-center justify-center flex-shrink-0">
+                    <span class="text-xl">🛡️</span>
+                </div>
+                <div>
+                    <p class="text-[10px] text-gray-500 uppercase tracking-widest font-bold mb-0.5">Total Prevented Attacks</p>
+                    <p class="text-3xl font-extrabold text-red-600" id="soc-prevented-attacks">{{ critical_count }}</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Live Security Event Log Card -->
+        <div class="bg-white/80 glass-panel border border-gray-200/70 rounded-2xl shadow-sm overflow-hidden">
+            <div class="px-6 py-4 border-b border-gray-200/60 flex items-center justify-between">
+                <h3 class="text-base font-bold text-gray-900 flex items-center gap-2">
+                    <svg class="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                    Live Security Event Log
+                </h3>
+                <span class="text-xs text-gray-500 font-medium">Logged automatically on cryptographic anomalies</span>
+            </div>
+
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse" id="soc-events-table">
+                    <thead>
+                        <tr class="border-b border-gray-200/60 bg-gray-50/60 text-xs font-bold uppercase tracking-wider text-gray-500">
+                            <th class="px-6 py-3.5">Timestamp (Local)</th>
+                            <th class="px-6 py-3.5">Severity</th>
+                            <th class="px-6 py-3.5">Origin IP</th>
+                            <th class="px-6 py-3.5">Action Triggered</th>
+                            <th class="px-6 py-3.5">Trace Details</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-200/60 text-sm">
+                        {% for log in soc_logs %}
+                        <tr class="hover:bg-red-50/20 transition-colors soc-log-row">
+                            <td class="px-6 py-4 font-mono text-xs text-gray-600 whitespace-nowrap">{{ log.timestamp|date:"Y-m-d H:i:s" }}</td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                {% if log.level == 'CRITICAL' %}
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-red-100 text-red-700 border border-red-200 uppercase tracking-wider">
+                                        CRITICAL
+                                    </span>
+                                {% else %}
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-200 uppercase tracking-wider">
+                                        WARNING
+                                    </span>
+                                {% endif %}
+                            </td>
+                            <td class="px-6 py-4 font-mono text-xs font-semibold text-blue-600 whitespace-nowrap">{{ log.ip_address|default:"127.0.0.1" }}</td>
+                            <td class="px-6 py-4 font-semibold text-gray-900 whitespace-nowrap">{{ log.action }}</td>
+                            <td class="px-6 py-4 font-mono text-xs text-gray-500 max-w-xs md:max-w-md truncate" title="{{ log.details }}">{{ log.details }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr id="soc-empty-row">
+                            <td colspan="5" class="px-6 py-16 text-center">
+                                <div class="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-emerald-50 border border-emerald-200 mb-4 shadow-sm">
+                                    <svg class="w-8 h-8 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
+                                </div>
+                                <h4 class="text-base font-bold text-gray-900 mb-1">Network is Secure</h4>
+                                <p class="text-xs text-gray-500 font-medium max-w-sm mx-auto">No malicious activity or duplicate vote attempts detected.</p>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
     </div>
 </div>
 {% endblock %}

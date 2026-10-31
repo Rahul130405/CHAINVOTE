@@ -17,6 +17,7 @@ from django.core.cache import cache
 
 from .models import Election, Candidate, Vote, SecurityLog
 from .serializers import ElectionSerializer, ElectionListSerializer, VoteSerializer
+from datetime import timedelta
 import hashlib
 import logging
 import os
@@ -66,20 +67,32 @@ def home(request):
         ended = [e for e in elections if e.end_time < now]
 
         total_blocks = Vote.objects.count()
-        latest_threat = (
-            SecurityLog.objects.only('id', 'level', 'action', 'ip_address', 'details', 'timestamp').first()
-            if hasattr(SecurityLog, 'objects') else None
-        )
 
         context = {
             'active_elections': active,
             'upcoming_elections': upcoming,
             'ended_elections': ended,
             'total_blocks': total_blocks,
-            'latest_threat': latest_threat,
         }
         # In-memory micro-cache: eliminates repeated DB round-trips on refreshes
         cache.set(cache_key, context, timeout=20)
+    else:
+        context = dict(context)
+
+    # Always fetch latest qualifying CRITICAL threat event in real-time (last 24 hours)
+    if hasattr(SecurityLog, 'objects'):
+        cutoff = timezone.now() - timedelta(hours=24)
+        latest_threat = (
+            SecurityLog.objects
+            .filter(level='CRITICAL', timestamp__gte=cutoff)
+            .order_by('-timestamp')
+            .only('id', 'level', 'action', 'timestamp')
+            .first()
+        )
+    else:
+        latest_threat = None
+
+    context['latest_threat'] = latest_threat
 
     return render(request, 'voting/home.html', context)
 
@@ -174,6 +187,7 @@ def cast_vote(request, election_id):
                 ip_address=ip,
                 details=f"Voter hash {voter_hash[:15]}... attempted to bypass the ledger in '{candidate.election.title}'."
             )
+            cache.delete('home_landing_context')
             messages.error(request, "SECURITY ALERT: You have already voted with this ID. This attempt has been logged.")
             return redirect('election_detail', election_id=election_id)
 
@@ -511,12 +525,19 @@ def manage_dashboard(request):
         elif e.status == 'ended':
             completed_elections += 1
 
+    # SOC Threat Operations data
+    soc_logs = list(SecurityLog.objects.only('id', 'level', 'action', 'ip_address', 'details', 'timestamp').all()[:50])
+    critical_count = SecurityLog.objects.filter(level='CRITICAL').count()
+
     return render(request, 'voting/manage/dashboard.html', {
         'elections': elections,
         'total_elections': total_elections,
         'active_elections': active_elections,
         'completed_elections': completed_elections,
         'total_candidates': total_candidates,
+        'soc_logs': soc_logs,
+        'logs': soc_logs,
+        'critical_count': critical_count,
     })
 
 

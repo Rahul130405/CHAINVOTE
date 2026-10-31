@@ -18,7 +18,7 @@ from django.http import HttpResponse
 from django.db import connection, transaction
 from voting.decorators import admin_required
 from voting.forms import ElectionForm, CandidateForm, candidate_has_recorded_votes
-from voting.models import Election, Candidate, Vote
+from voting.models import Election, Candidate, Vote, SecurityLog
 from voting.utils.encryption import encrypt_vote
 from voting.views import hash_identity, validate_voter_id
 
@@ -792,3 +792,315 @@ def test_postgres_concurrency_vote_blocks_deletion():
     assert test_results.get('detected_blocked_locks', 0) >= 1, "Expected PostgreSQL row lock contention in pg_locks"
 
 
+
+
+# ─────────────────────────────────────────────────────────────
+# 6. INTEGRATED SOC THREAT OPERATIONS & HOMEPAGE ALERT TESTS
+# ─────────────────────────────────────────────────────────────
+
+@pytest.mark.django_db
+def test_manage_dashboard_displays_integrated_soc_section(client, staff_user):
+    """
+    Staff user accessing /manage/ can view the integrated SOC Threat Operations section,
+    including metrics, table headers, and clean secure network state when empty.
+    """
+    client.force_login(staff_user)
+    response = client.get('/manage/')
+    assert response.status_code == 200
+    content = response.content.decode()
+
+    # Election management components remain intact
+    assert "Election Management Portal" in content
+    assert "Elections Roster" in content
+    assert 'id="metric-total-elections"' in content
+    assert 'id="btn-create-election"' in content
+
+    # Integrated SOC section present
+    assert 'id="soc-threat-section"' in content
+    assert "Threat Operations" in content
+    assert "Total Prevented Attacks" in content
+    assert 'id="soc-prevented-attacks"' in content
+    assert "Live Security Event Log" in content
+    assert 'id="soc-events-table"' in content
+    assert "Network is Secure" in content
+
+
+@pytest.mark.django_db
+def test_manage_dashboard_displays_soc_log_records(client, staff_user):
+    """
+    SecurityLog records are displayed accurately within the Manage portal SOC section
+    with timestamps, severities, origin IPs, actions, and trace details.
+    """
+    SecurityLog.objects.create(
+        level='CRITICAL',
+        action='Duplicate Vote Blocked',
+        ip_address='192.168.1.100',
+        details='Voter hash collision detected in Senate Election'
+    )
+    SecurityLog.objects.create(
+        level='WARNING',
+        action='Invalid Nonce Attempt',
+        ip_address='10.0.0.55',
+        details='Trace anomaly on blockchain link'
+    )
+
+    client.force_login(staff_user)
+    response = client.get('/manage/')
+    assert response.status_code == 200
+    content = response.content.decode()
+
+    # Prevented attacks counter should reflect critical count
+    assert 'id="soc-prevented-attacks">1<' in content
+
+    # Event table rows contain logs
+    assert "Duplicate Vote Blocked" in content
+    assert "192.168.1.100" in content
+    assert "Voter hash collision detected in Senate Election" in content
+    assert "CRITICAL" in content
+
+    assert "Invalid Nonce Attempt" in content
+    assert "10.0.0.55" in content
+    assert "Trace anomaly on blockchain link" in content
+    assert "WARNING" in content
+
+
+@pytest.mark.django_db
+def test_manage_dashboard_soc_hidden_from_regular_voter(client, test_user):
+    """
+    Regular voters cannot access /manage/ or view sensitive SOC threat details.
+    Server-side redirect occurs fail-closed.
+    """
+    SecurityLog.objects.create(
+        level='CRITICAL',
+        action='Confidential Security Incident',
+        ip_address='10.99.88.77',
+        details='Sensitive internal SOC diagnostic payload'
+    )
+
+    client.force_login(test_user)
+    response = client.get('/manage/', follow=True)
+    assert response.status_code == 200
+    assert response.redirect_chain[0][0] == '/'
+    content = response.content.decode()
+
+    # Sensitive SOC fields must never be exposed
+    assert "Confidential Security Incident" not in content
+    assert "10.99.88.77" not in content
+    assert "Sensitive internal SOC diagnostic payload" not in content
+    assert "Live Security Event Log" not in content
+
+
+@pytest.mark.django_db
+def test_homepage_soc_indicator_removed_from_header(client, staff_user, test_user):
+    """
+    The SOC badge/indicator/link is completely removed from the public homepage header
+    for all user states (anonymous, voter, staff). Staff receives standard Manage link.
+    """
+    # 1. Anonymous visitor
+    resp_anon = client.get('/')
+    content_anon = resp_anon.content.decode()
+    assert '>SOC Active<' not in content_anon
+    assert '/security/threat-dashboard/' not in content_anon
+
+    # 2. Regular voter
+    client.force_login(test_user)
+    resp_voter = client.get('/')
+    content_voter = resp_voter.content.decode()
+    assert '>SOC Active<' not in content_voter
+    assert '/security/threat-dashboard/' not in content_voter
+    assert 'id="nav-manage-link"' not in content_voter
+
+    # 3. Staff user: No SOC header indicator; receives Manage portal link instead
+    client.force_login(staff_user)
+    resp_staff = client.get('/')
+    content_staff = resp_staff.content.decode()
+    assert '>SOC Active<' not in content_staff
+    assert 'id="nav-manage-link"' in content_staff
+    assert '/manage/' in content_staff
+
+
+@pytest.mark.django_db
+def test_homepage_security_warning_lifecycle(client):
+    """
+    Verifies that:
+    1. No warning banner appears on the homepage when zero threat events exist.
+    2. When a security threat event exists, a minimal non-sensitive warning appears.
+    3. The warning does not expose sensitive internal trace details or origin IPs.
+    """
+    from django.core.cache import cache
+    cache.clear()
+
+    # 1. Zero threats: clean state
+    assert SecurityLog.objects.count() == 0
+    resp_clean = client.get('/')
+    content_clean = resp_clean.content.decode()
+    assert 'id="security-threat-warning"' not in content_clean
+    assert 'data-i18n="sec_alert_title"' not in content_clean
+
+    # 2. Security threat logged
+    threat = SecurityLog.objects.create(
+        level='CRITICAL',
+        action='Duplicate Vote Blocked',
+        ip_address='198.51.100.42',
+        details='Voter hash 7f9a1b2c3d4e5f6... attempted to bypass the ledger in Campus Election.'
+    )
+    cache.clear()
+
+    resp_threat = client.get('/')
+    content_threat = resp_threat.content.decode()
+
+    # Warning must appear
+    assert 'id="security-threat-warning"' in content_threat
+    assert "Security Notice" in content_threat
+    assert "A security threat event was detected and mitigated" in content_threat
+
+    # Strict Privacy Check: Sensitive SOC details must NOT be displayed on public homepage
+    assert '198.51.100.42' not in content_threat
+    assert '7f9a1b2c3d4e5f6' not in content_threat
+    assert 'attempted to bypass the ledger' not in content_threat
+
+
+
+@pytest.mark.django_db
+def test_homepage_warning_triggered_by_recent_critical_event(client):
+    """A recent CRITICAL event within the last 24 hours triggers the homepage warning."""
+    from django.core.cache import cache
+    cache.clear()
+
+    recent_critical = SecurityLog.objects.create(
+        level='CRITICAL',
+        action='Duplicate Vote Blocked',
+        ip_address='10.0.0.1',
+        details='Collision attempt'
+    )
+    now = timezone.now()
+    SecurityLog.objects.filter(id=recent_critical.id).update(timestamp=now - timedelta(hours=1))
+
+    resp = client.get('/')
+    assert resp.status_code == 200
+    content = resp.content.decode()
+    assert 'id="security-threat-warning"' in content
+    assert "Security Notice" in content
+    assert "A security threat event was detected and mitigated" in content
+
+
+@pytest.mark.django_db
+def test_homepage_warning_not_triggered_by_warning_only_event(client):
+    """A WARNING-level event does not trigger the public homepage warning."""
+    from django.core.cache import cache
+    cache.clear()
+
+    warning_event = SecurityLog.objects.create(
+        level='WARNING',
+        action='Suspicious Query Pattern',
+        ip_address='10.0.0.2',
+        details='Anomalous telemetry ping'
+    )
+    now = timezone.now()
+    SecurityLog.objects.filter(id=warning_event.id).update(timestamp=now - timedelta(minutes=15))
+
+    resp = client.get('/')
+    assert resp.status_code == 200
+    content = resp.content.decode()
+    assert 'id="security-threat-warning"' not in content
+    assert 'data-i18n="sec_alert_title"' not in content
+
+
+@pytest.mark.django_db
+def test_homepage_warning_not_triggered_by_stale_critical_event(client):
+    """A CRITICAL event older than 24 hours does not trigger the homepage warning."""
+    from django.core.cache import cache
+    cache.clear()
+
+    stale_critical = SecurityLog.objects.create(
+        level='CRITICAL',
+        action='Duplicate Vote Blocked',
+        ip_address='10.0.0.3',
+        details='Stale breach attempt'
+    )
+    now = timezone.now()
+    SecurityLog.objects.filter(id=stale_critical.id).update(timestamp=now - timedelta(hours=26))
+
+    resp = client.get('/')
+    assert resp.status_code == 200
+    content = resp.content.decode()
+    assert 'id="security-threat-warning"' not in content
+    assert 'data-i18n="sec_alert_title"' not in content
+
+
+@pytest.mark.django_db
+def test_homepage_selects_latest_qualifying_critical_event(client):
+    """When multiple qualifying CRITICAL events exist within 24 hours, the latest by descending timestamp is selected."""
+    from django.core.cache import cache
+    cache.clear()
+
+    now = timezone.now()
+
+    older_event = SecurityLog.objects.create(
+        level='CRITICAL',
+        action='Duplicate Vote Blocked',
+        ip_address='10.0.0.10',
+        details='Older attempt'
+    )
+    older_time = now - timedelta(hours=12)
+    SecurityLog.objects.filter(id=older_event.id).update(timestamp=older_time)
+
+    newer_event = SecurityLog.objects.create(
+        level='CRITICAL',
+        action='Duplicate Vote Blocked',
+        ip_address='10.0.0.11',
+        details='Newer attempt'
+    )
+    newer_time = now - timedelta(hours=1)
+    SecurityLog.objects.filter(id=newer_event.id).update(timestamp=newer_time)
+
+    resp = client.get('/')
+    assert resp.status_code == 200
+    content = resp.content.decode()
+    assert 'id="security-threat-warning"' in content
+
+    from django.utils.dateformat import format as date_format
+    expected_newer_ts = date_format(newer_time, "Y-m-d H:i")
+    expected_older_ts = date_format(older_time, "Y-m-d H:i")
+
+    assert expected_newer_ts in content
+    assert expected_older_ts not in content
+
+
+@pytest.mark.django_db
+def test_manage_soc_still_displays_warning_and_critical_events(client, staff_user):
+    """Manage portal SOC threat section displays both WARNING and CRITICAL events."""
+    now = timezone.now()
+
+    crit = SecurityLog.objects.create(
+        level='CRITICAL',
+        action='Ledger Bypass Attempt',
+        ip_address='10.10.10.1',
+        details='Critical breach attempt'
+    )
+    SecurityLog.objects.filter(id=crit.id).update(timestamp=now - timedelta(hours=30))
+
+    warn = SecurityLog.objects.create(
+        level='WARNING',
+        action='Unusual Request Rate',
+        ip_address='10.10.10.2',
+        details='Warning anomaly'
+    )
+    SecurityLog.objects.filter(id=warn.id).update(timestamp=now - timedelta(minutes=10))
+
+    client.force_login(staff_user)
+    resp = client.get('/manage/')
+    assert resp.status_code == 200
+    content = resp.content.decode()
+
+    assert "Ledger Bypass Attempt" in content
+    assert "10.10.10.1" in content
+    assert "Critical breach attempt" in content
+    assert "CRITICAL" in content
+
+    assert "Unusual Request Rate" in content
+    assert "10.10.10.2" in content
+    assert "Warning anomaly" in content
+    assert "WARNING" in content
+
+    assert 'id="soc-prevented-attacks">1<' in content

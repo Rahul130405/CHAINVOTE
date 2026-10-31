@@ -103,11 +103,8 @@
                     <span id="lang-text">हिंदी</span>
                 </button>
 
-                <!-- SOC Link (Authorized Staff Only) -->
                 {% if request.user.is_authenticated and request.user.is_staff or request.user.is_superuser %}
-                <a href="{% url 'threat_dashboard' %}" class="text-xs font-semibold tracking-wide text-red-600 hover:text-red-700 transition flex items-center">
-                    <span class="w-1.5 h-1.5 bg-red-500 rounded-full mr-1.5 animate-pulse"></span> SOC
-                </a>
+                <a href="{% url 'manage_dashboard' %}" class="text-xs md:text-sm font-semibold text-blue-600 hover:text-blue-800 transition" id="nav-manage-link">Manage</a>
                 {% endif %}
                 
                 {% if request.user.is_authenticated %}
@@ -132,6 +129,25 @@
                 <span>{{ message }}</span>
             </div>
             {% endfor %}
+        </div>
+        {% endif %}
+
+        <!-- Security Threat Event Warning (Appears only when a relevant threat event is detected) -->
+        {% if latest_threat %}
+        <div id="security-threat-warning" class="mb-8 p-4 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-sm shadow-sm" role="alert" aria-live="polite">
+            <div class="flex items-center gap-3">
+                <span class="flex-shrink-0 w-8 h-8 rounded-xl bg-amber-100 border border-amber-200 flex items-center justify-center text-base">
+                    ⚠️
+                </span>
+                <div>
+                    <p class="font-bold text-amber-950" data-i18n="sec_alert_title">Security Notice</p>
+                    <p class="text-xs text-amber-800" data-i18n="sec_alert_desc">A security threat event was detected and mitigated by the protocol. Blockchain ledger integrity remains secure.</p>
+                </div>
+            </div>
+            <div class="flex items-center space-x-1.5 text-xs text-amber-700 font-mono bg-amber-100/70 px-3 py-1 rounded-full border border-amber-200 self-start sm:self-auto">
+                <span>Logged:</span>
+                <span>{{ latest_threat.timestamp|date:"Y-m-d H:i" }}</span>
+            </div>
         </div>
         {% endif %}
 
@@ -360,7 +376,7 @@
             
             {% if request.user.is_authenticated and request.user.is_staff or request.user.is_superuser %}
             <div class="flex space-x-4 text-xs font-semibold">
-                <a href="{% url 'threat_dashboard' %}" class="text-gray-600 hover:text-black transition" data-i18n="footer_soc">SOC Dashboard</a>
+                <a href="{% url 'manage_dashboard' %}" class="text-gray-600 hover:text-black transition" id="footer-manage-link">Manage Portal</a>
             </div>
             {% endif %}
         </div>
@@ -413,6 +429,8 @@
                 sec3_desc: 'A live Security Operations Center monitors and blocks duplicate voting attempts and anomalies in real-time.',
                 footer_text: 'Secure & Decentralized Voting Protocol',
                 footer_soc: 'SOC Dashboard',
+                sec_alert_title: 'Security Notice',
+                sec_alert_desc: 'A security threat event was detected and mitigated by the protocol. Blockchain ledger integrity remains secure.',
                 lang_btn: 'हिंदी'
             },
             hi: {
@@ -459,6 +477,8 @@
                 sec3_desc: 'एक लाइव सुरक्षा संचालन केंद्र वास्तविक समय में दोहरे मतदान के प्रयासों और विसंगतियों को रोकता है।',
                 footer_text: 'सुरक्षित एवं विकेंद्रीकृत मतदान प्रणाली',
                 footer_soc: 'SOC सुरक्षा डैशबोर्ड',
+                sec_alert_title: 'सुरक्षा सूचना',
+                sec_alert_desc: 'एक सुरक्षा खतरे का पता चला और उसे प्रोटोकॉल द्वारा निष्प्रभावी कर दिया गया। ब्लॉकचेन लेज़र सुरक्षित है।',
                 lang_btn: 'English'
             }
         };
