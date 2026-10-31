@@ -254,7 +254,9 @@
                                    minlength="10" maxlength="10" pattern="(?=.*[A-Za-z])(?=.*[0-9])[A-Za-z0-9]{10}"
                                    class="w-full bg-white border border-slate-300 rounded-xl pl-4 pr-12 py-3.5 text-slate-900 font-mono placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition shadow-sm text-base"
                                    placeholder="Enter 10-character ID..."
-                                   data-i18n-placeholder="ph_voter_id">
+                                   data-i18n-placeholder="ph_voter_id"
+                                   aria-describedby="aadhaarError zkp_explanation"
+                                   aria-invalid="false">
                             
                             <button 
                                 type="button" 
@@ -274,7 +276,15 @@
                             </button>
                         </div>
                         
-                        <p class="text-xs text-slate-500 mt-3 flex items-start leading-relaxed" data-i18n="zkp_explanation">
+                        <!-- Inline Field Error Message directly below input -->
+                        <div id="aadhaarError" class="hidden text-xs text-rose-600 font-medium mt-2 flex items-center" role="alert" aria-live="polite">
+                            <svg class="w-3.5 h-3.5 mr-1.5 flex-shrink-0 text-rose-500" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+                            </svg>
+                            <span id="aadhaarErrorText"></span>
+                        </div>
+
+                        <p id="zkp_explanation" class="text-xs text-slate-500 mt-3 flex items-start leading-relaxed" data-i18n="zkp_explanation">
                             <svg class="w-4 h-4 text-emerald-500 mr-1.5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
                             Privacy Protected: Your ID is converted into a secure one-way hash. Your raw ID is never stored.
                         </p>
@@ -421,6 +431,80 @@
             }
         }
 
+        // Voter ID State Management & Field Styling
+        let voterIdTouched = false;
+
+        function setVoterIdValid() {
+            const input = document.getElementById('aadhaar');
+            const errElem = document.getElementById('aadhaarError');
+            const errText = document.getElementById('aadhaarErrorText');
+            if (!input) return;
+
+            input.setAttribute('aria-invalid', 'false');
+            input.classList.remove(
+                'border-rose-500', 'focus:border-rose-500', 'focus:ring-rose-500/20', 'bg-rose-50/40',
+                'border-slate-300', 'focus:border-blue-500', 'focus:ring-blue-500/20'
+            );
+            input.classList.add(
+                'border-emerald-500', 'focus:border-emerald-500', 'focus:ring-emerald-500/20', 'bg-emerald-50/20'
+            );
+
+            if (errElem) {
+                errElem.classList.add('hidden');
+                delete errElem.dataset.errorKey;
+            }
+            if (errText) errText.textContent = '';
+        }
+
+        function setVoterIdInvalid(errorKey, fallbackText) {
+            const input = document.getElementById('aadhaar');
+            const errElem = document.getElementById('aadhaarError');
+            const errText = document.getElementById('aadhaarErrorText');
+            if (!input) return;
+
+            const currentLang = localStorage.getItem('preferred-lang') || 'en';
+            const dict = translations[currentLang] || translations.en;
+
+            input.setAttribute('aria-invalid', 'true');
+            input.classList.remove(
+                'border-emerald-500', 'focus:border-emerald-500', 'focus:ring-emerald-500/20', 'bg-emerald-50/20',
+                'border-slate-300', 'focus:border-blue-500', 'focus:ring-blue-500/20'
+            );
+            input.classList.add(
+                'border-rose-500', 'focus:border-rose-500', 'focus:ring-rose-500/20', 'bg-rose-50/40'
+            );
+
+            if (errElem) {
+                errElem.dataset.errorKey = errorKey;
+                errElem.classList.remove('hidden');
+            }
+            if (errText) {
+                errText.textContent = dict[errorKey] || fallbackText;
+            }
+        }
+
+        function clearVoterIdState() {
+            const input = document.getElementById('aadhaar');
+            const errElem = document.getElementById('aadhaarError');
+            const errText = document.getElementById('aadhaarErrorText');
+            if (!input) return;
+
+            input.setAttribute('aria-invalid', 'false');
+            input.classList.remove(
+                'border-rose-500', 'focus:border-rose-500', 'focus:ring-rose-500/20', 'bg-rose-50/40',
+                'border-emerald-500', 'focus:border-emerald-500', 'focus:ring-emerald-500/20', 'bg-emerald-50/20'
+            );
+            input.classList.add(
+                'border-slate-300', 'focus:border-blue-500', 'focus:ring-blue-500/20', 'bg-white'
+            );
+
+            if (errElem) {
+                errElem.classList.add('hidden');
+                delete errElem.dataset.errorKey;
+            }
+            if (errText) errText.textContent = '';
+        }
+
         // Review Modal Handlers
         function openReviewModal() {
             const aadhaarInput = document.getElementById('aadhaar');
@@ -433,8 +517,11 @@
             const rawId = aadhaarInput.value;
             const trimmedId = (rawId || '').trim();
 
+            voterIdTouched = true;
+
             // Validation 1: Voter ID must not be empty
             if (!trimmedId) {
+                setVoterIdInvalid('field_voter_id_required', 'Voter ID is required.');
                 validationAlert.classList.remove('hidden');
                 validationMsg.dataset.errorKey = 'alert_enter_id';
                 validationMsg.textContent = dict.alert_enter_id;
@@ -442,14 +529,18 @@
                 return;
             }
 
-            // Validation 2: Voter ID must be exactly 10 alphanumeric characters
+            // Validation 2: Voter ID must be exactly 10 alphanumeric characters (both letters and numbers)
             if (!voterIdPattern.test(trimmedId)) {
+                setVoterIdInvalid('alert_invalid_id', 'Voter ID must contain both letters and numbers (alphanumeric only).');
                 validationAlert.classList.remove('hidden');
                 validationMsg.dataset.errorKey = 'alert_invalid_id';
                 validationMsg.textContent = dict.alert_invalid_id;
                 aadhaarInput.focus();
                 return;
             }
+
+            // Mark field visually valid
+            setVoterIdValid();
 
             // Validation 3: Candidate must be chosen
             if (!selectedRadio) {
@@ -546,6 +637,7 @@
                 btn_change_selection: '← Change Selection',
                 btn_confirm_submit: 'Confirm & Submit Vote',
                 recording_vote: 'Encrypting & Recording Vote...',
+                field_voter_id_required: 'Voter ID is required.',
                 alert_enter_id: 'Please enter your Unique Voter ID before proceeding.',
                 alert_invalid_id: 'Voter ID must contain both letters and numbers (alphanumeric only).',
                 alert_select_candidate: 'Please select a candidate before proceeding.',
@@ -581,6 +673,7 @@
                 btn_change_selection: '← पसंद बदलें',
                 btn_confirm_submit: 'पुष्टि करें और वोट दर्ज करें',
                 recording_vote: 'वोट सुरक्षित रूप से दर्ज हो रहा है...',
+                field_voter_id_required: 'वोटर आईडी आवश्यक है।',
                 alert_enter_id: 'आगे बढ़ने से पहले कृपया अपनी वोटर आईडी दर्ज करें।',
                 alert_invalid_id: 'मतदाता आईडी में अक्षर और संख्या दोनों होने चाहिए (केवल अल्फ़ान्यूमेरिक)।',
                 alert_select_candidate: 'आगे बढ़ने से पहले कृपया किसी एक उम्मीदवार का चयन करें।',
@@ -617,6 +710,13 @@
                 if (dict[errKey]) validationMsg.textContent = dict[errKey];
             }
 
+            const aadhaarErrElem = document.getElementById('aadhaarError');
+            const aadhaarErrText = document.getElementById('aadhaarErrorText');
+            if (aadhaarErrElem && aadhaarErrElem.dataset.errorKey && aadhaarErrText) {
+                const fieldKey = aadhaarErrElem.dataset.errorKey;
+                if (dict[fieldKey]) aadhaarErrText.textContent = dict[fieldKey];
+            }
+
             const langText = document.getElementById('lang-text');
             if (langText) langText.textContent = dict.lang_btn;
         }
@@ -631,6 +731,43 @@
         document.addEventListener("DOMContentLoaded", () => {
             const savedLang = localStorage.getItem('preferred-lang') || 'en';
             setLanguage(savedLang);
+
+            // Real-time Voter ID Field Validation & Timing
+            const aadhaarInput = document.getElementById('aadhaar');
+            if (aadhaarInput) {
+                aadhaarInput.addEventListener('blur', function() {
+                    voterIdTouched = true;
+                    const trimmed = (aadhaarInput.value || '').trim();
+                    const voterIdPattern = /^(?=.*[A-Za-z])(?=.*[0-9])[A-Za-z0-9]{10}$/;
+                    if (!trimmed) {
+                        clearVoterIdState();
+                    } else if (voterIdPattern.test(trimmed)) {
+                        setVoterIdValid();
+                    } else {
+                        setVoterIdInvalid('alert_invalid_id', 'Voter ID must contain both letters and numbers (alphanumeric only).');
+                    }
+                });
+
+                aadhaarInput.addEventListener('input', function() {
+                    const trimmed = (aadhaarInput.value || '').trim();
+                    const voterIdPattern = /^(?=.*[A-Za-z])(?=.*[0-9])[A-Za-z0-9]{10}$/;
+                    if (voterIdPattern.test(trimmed)) {
+                        setVoterIdValid();
+                        const validationAlert = document.getElementById('validationAlert');
+                        const validationMsg = document.getElementById('validationAlertMsg');
+                        if (validationMsg && (validationMsg.dataset.errorKey === 'alert_enter_id' || validationMsg.dataset.errorKey === 'alert_invalid_id')) {
+                            delete validationMsg.dataset.errorKey;
+                            if (validationAlert) validationAlert.classList.add('hidden');
+                        }
+                    } else if (voterIdTouched) {
+                        if (!trimmed) {
+                            clearVoterIdState();
+                        } else {
+                            setVoterIdInvalid('alert_invalid_id', 'Voter ID must contain both letters and numbers (alphanumeric only).');
+                        }
+                    }
+                });
+            }
 
             setTimeout(() => {
                 const el = document.querySelector('.reveal-hidden');

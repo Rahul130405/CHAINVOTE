@@ -26,6 +26,8 @@ class VotingBoothPage(BasePage):
     CONFIRM_SUBMIT_BTN = (By.ID, "confirmSubmitBtn")
     VALIDATION_ALERT = (By.ID, "validationAlert")
     VALIDATION_ALERT_MSG = (By.ID, "validationAlertMsg")
+    AADHAAR_ERROR = (By.ID, "aadhaarError")
+    AADHAAR_ERROR_TEXT = (By.ID, "aadhaarErrorText")
     AADHAAR_TOGGLE_BTN = (By.ID, "toggleAadhaarBtn")
     REVIEW_BADGE = (By.XPATH, "//*[@id='reviewModal']//span[@data-i18n='badge_masked' or @data-i18n='badge_encrypted']")
 
@@ -196,3 +198,28 @@ class VotingBoothPage(BasePage):
     def click_abort_and_return(self):
         """Clicks the 'Abort & Return' link."""
         self.click(self.ABORT_LINK)
+
+    def has_field_error(self) -> bool:
+        """Checks if the inline field-level error message is visible."""
+        return self.is_visible(self.AADHAAR_ERROR, timeout=2)
+
+    def get_field_error_text(self) -> str:
+        """Returns the inline field-level error message text."""
+        return self.get_text(self.AADHAAR_ERROR_TEXT)
+
+    def get_voter_id_aria_invalid(self) -> str:
+        """Returns the aria-invalid attribute of #aadhaar."""
+        return self.find_element(self.AADHAAR_INPUT).get_attribute("aria-invalid")
+
+    def get_voter_id_aria_describedby(self) -> str:
+        """Returns the aria-describedby attribute of #aadhaar."""
+        return self.find_element(self.AADHAAR_INPUT).get_attribute("aria-describedby")
+
+    def get_voter_id_class(self) -> str:
+        """Returns the class attribute of #aadhaar."""
+        return self.find_element(self.AADHAAR_INPUT).get_attribute("class")
+
+    def trigger_voter_id_blur(self):
+        """Triggers blur event on #aadhaar."""
+        self.driver.execute_script("document.getElementById('aadhaar').dispatchEvent(new Event('blur'));")
+

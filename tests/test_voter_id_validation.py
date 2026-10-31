@@ -415,6 +415,11 @@ def test_frontend_voter_id_invalid_rejected_inline_and_modal_blocked(browser, li
         assert not booth_page.is_review_modal_visible(), f"Review modal should not open for invalid ID: {inv_id}"
         assert booth_page.has_validation_alert(), f"Expected validation alert for invalid ID: {inv_id}"
         assert "Voter ID must contain both letters and numbers (alphanumeric only)." in booth_page.get_validation_alert_text()
+        assert booth_page.has_field_error(), f"Expected inline field error for invalid ID: {inv_id}"
+        assert "Voter ID must contain both letters and numbers (alphanumeric only)." in booth_page.get_field_error_text()
+        assert booth_page.get_voter_id_aria_invalid() == "true"
+        assert "border-rose-500" in booth_page.get_voter_id_class()
+        assert "bg-rose-50" in booth_page.get_voter_id_class()
 
     # Maxlength=10 prevents entry of 11th character
     booth_page.enter_voter_id("TOOLONGID11")
@@ -461,3 +466,49 @@ def test_frontend_voter_id_show_hide_toggle(browser, live_server, test_user, act
     assert booth_page.get_voter_id_input_type() == "text"
     booth_page.toggle_voter_id_visibility()
     assert booth_page.get_voter_id_input_type() == "password"
+
+
+@pytest.mark.django_db(transaction=True)
+def test_frontend_voter_id_empty_and_valid_ui_states(browser, live_server, test_user, active_election):
+    """
+    Verifies Voter ID field visual states:
+    1. Initially neutral without red borders or errors before interaction.
+    2. Empty input shows red border, red tint, and 'Voter ID is required.' upon attempting to proceed.
+    3. Valid input immediately removes red errors and applies green success state.
+    4. Accessibility attributes (aria-invalid, aria-describedby) update accurately.
+    """
+    _login_voter(browser, live_server, test_user)
+    from tests.pages.voting_booth_page import VotingBoothPage
+    booth_page = VotingBoothPage(browser, live_server.url)
+    booth_page.navigate(active_election.id)
+
+    # 1. Initial State: No red errors before interaction
+    assert not booth_page.has_field_error()
+    assert booth_page.get_voter_id_aria_invalid() == "false"
+    assert "border-rose-500" not in booth_page.get_voter_id_class()
+    assert "aadhaarError" in booth_page.get_voter_id_aria_describedby()
+
+    # 2. Empty Input: Attempt to proceed -> red border + "Voter ID is required."
+    candidate = active_election.candidates.first()
+    booth_page.select_candidate(candidate.id)
+    booth_page.click_review_vote()
+    assert not booth_page.is_review_modal_visible()
+    assert booth_page.has_validation_alert()
+    assert booth_page.has_field_error()
+    assert "Voter ID is required." in booth_page.get_field_error_text()
+    assert booth_page.get_voter_id_aria_invalid() == "true"
+    assert "border-rose-500" in booth_page.get_voter_id_class()
+    assert "bg-rose-50" in booth_page.get_voter_id_class()
+
+    # 3. Valid Input: Correcting value -> immediately clears error & applies subtle green success state
+    booth_page.enter_voter_id("VALID10VOT")
+    assert not booth_page.has_field_error()
+    assert booth_page.get_voter_id_aria_invalid() == "false"
+    assert "border-rose-500" not in booth_page.get_voter_id_class()
+    assert "border-emerald-500" in booth_page.get_voter_id_class()
+    assert "bg-emerald-50" in booth_page.get_voter_id_class()
+
+    # Proceed succeeds with valid input
+    booth_page.click_review_vote()
+    booth_page.wait_for_review_modal()
+    assert booth_page.is_review_modal_visible()
