@@ -251,7 +251,7 @@
                         
                         <div class="relative">
                             <input type="password" name="aadhaar" id="aadhaar" required
-                                   minlength="10" maxlength="10" pattern="[A-Za-z0-9]{10}"
+                                   minlength="10" maxlength="10" pattern="(?=.*[A-Za-z])(?=.*[0-9])[A-Za-z0-9]{10}"
                                    class="w-full bg-white border border-slate-300 rounded-xl pl-4 pr-12 py-3.5 text-slate-900 font-mono placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition shadow-sm text-base"
                                    placeholder="Enter 10-character ID..."
                                    data-i18n-placeholder="ph_voter_id">
@@ -429,11 +429,12 @@
             const validationMsg = document.getElementById('validationAlertMsg');
             const currentLang = localStorage.getItem('preferred-lang') || 'en';
             const dict = translations[currentLang] || translations.en;
-            const voterIdPattern = /^[A-Za-z0-9]{10}$/;
+            const voterIdPattern = /^(?=.*[A-Za-z])(?=.*[0-9])[A-Za-z0-9]{10}$/;
             const rawId = aadhaarInput.value;
+            const trimmedId = (rawId || '').trim();
 
             // Validation 1: Voter ID must not be empty
-            if (!rawId) {
+            if (!trimmedId) {
                 validationAlert.classList.remove('hidden');
                 validationMsg.dataset.errorKey = 'alert_enter_id';
                 validationMsg.textContent = dict.alert_enter_id;
@@ -442,7 +443,7 @@
             }
 
             // Validation 2: Voter ID must be exactly 10 alphanumeric characters
-            if (!voterIdPattern.test(rawId)) {
+            if (!voterIdPattern.test(trimmedId)) {
                 validationAlert.classList.remove('hidden');
                 validationMsg.dataset.errorKey = 'alert_invalid_id';
                 validationMsg.textContent = dict.alert_invalid_id;
@@ -476,10 +477,10 @@
 
             // Mask Voter ID: show only last 4 digits
             let masked = '•••• •••• ';
-            if (rawId.length > 4) {
-                masked += rawId.slice(-4);
+            if (trimmedId.length > 4) {
+                masked += trimmedId.slice(-4);
             } else {
-                masked = '•••• ' + rawId;
+                masked = '•••• ' + trimmedId;
             }
             document.getElementById('reviewVoterIdMasked').textContent = masked;
 
@@ -497,6 +498,11 @@
         function executeConfirmedVote() {
             if (isSubmitting) return; // Prevent double submission
             isSubmitting = true;
+
+            const aadhaarInput = document.getElementById('aadhaar');
+            if (aadhaarInput) {
+                aadhaarInput.value = aadhaarInput.value.trim();
+            }
 
             const confirmBtn = document.getElementById('confirmSubmitBtn');
             const changeBtn = document.getElementById('changeSelectionBtn');
@@ -541,7 +547,7 @@
                 btn_confirm_submit: 'Confirm & Submit Vote',
                 recording_vote: 'Encrypting & Recording Vote...',
                 alert_enter_id: 'Please enter your Unique Voter ID before proceeding.',
-                alert_invalid_id: 'Voter ID must be exactly 10 alphanumeric characters (A-Z, 0-9) with no spaces or symbols.',
+                alert_invalid_id: 'Voter ID must contain both letters and numbers (alphanumeric only).',
                 alert_select_candidate: 'Please select a candidate before proceeding.',
                 receipt_heading: 'Vote Successfully Cast!',
                 receipt_status_lbl: 'Network Status',
@@ -576,7 +582,7 @@
                 btn_confirm_submit: 'पुष्टि करें और वोट दर्ज करें',
                 recording_vote: 'वोट सुरक्षित रूप से दर्ज हो रहा है...',
                 alert_enter_id: 'आगे बढ़ने से पहले कृपया अपनी वोटर आईडी दर्ज करें।',
-                alert_invalid_id: 'मतदाता आईडी ठीक 10 अक्षरों (A-Z, 0-9) की होनी चाहिए, बिना किसी स्पेस या विशेष चिन्ह के।',
+                alert_invalid_id: 'मतदाता आईडी में अक्षर और संख्या दोनों होने चाहिए (केवल अल्फ़ान्यूमेरिक)।',
                 alert_select_candidate: 'आगे बढ़ने से पहले कृपया किसी एक उम्मीदवार का चयन करें।',
                 receipt_heading: 'मत सफलतापूर्वक दर्ज हुआ!',
                 receipt_status_lbl: 'नेटवर्क स्थिति',
