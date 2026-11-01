@@ -1947,3 +1947,152 @@ def test_candidate_admin_delete_queryset_bulk_safety(rf, staff_user):
 
     assert Candidate.objects.filter(id=c_clean.id).exists() is False
     assert Candidate.objects.filter(id=c_voted.id).exists() is True
+
+
+# ==============================================================================
+# FOCUSED REGRESSION SUITE: CANDIDATE DELETION FIX & INTEGRITY VERIFICATION
+# ==============================================================================
+
+@pytest.mark.django_db
+def test_candidate_deletion_alpha_deleted_beta_retained(client, staff_user):
+    """
+    Requirement 1 & 4:
+    - Candidate ALPHA in an upcoming election with zero votes is cleanly deleted.
+    - Candidate BETA in the same election remains completely unaffected.
+    """
+    now = timezone.now()
+    election = Election.objects.create(
+        title="Upcoming Multi-Candidate Election",
+        start_time=now + timedelta(days=4),
+        end_time=now + timedelta(days=10),
+    )
+    alpha = Candidate.objects.create(election=election, name="DISPOSABLE_TEST_CAND_ALPHA")
+    beta = Candidate.objects.create(election=election, name="DISPOSABLE_TEST_CAND_BETA")
+
+    client.force_login(staff_user)
+    resp = client.post(reverse('manage_candidate_delete', args=[alpha.id]), follow=True)
+    assert resp.status_code == 200
+    assert resp.redirect_chain[0][0] == reverse('manage_election_candidates', args=[election.id])
+
+    # ALPHA is deleted
+    assert Candidate.objects.filter(id=alpha.id).exists() is False
+    # BETA remains intact
+    assert Candidate.objects.filter(id=beta.id).exists() is True
+    assert Candidate.objects.get(id=beta.id).name == "DISPOSABLE_TEST_CAND_BETA"
+
+
+@pytest.mark.django_db
+def test_candidate_deletion_blocked_with_recorded_votes(client, staff_user):
+    """
+    Requirement 2:
+    - Candidate with recorded cryptographic votes cannot be deleted.
+    - Database record and vote count remain completely unmutated.
+    """
+    now = timezone.now()
+    election = Election.objects.create(
+        title="Upcoming Election With Votes",
+        start_time=now + timedelta(days=3),
+        end_time=now + timedelta(days=7),
+    )
+    cand = Candidate.objects.create(election=election, name="Candidate With Votes")
+    vote = Vote.objects.create(
+        election=election,
+        encrypted_vote=encrypt_vote(str(cand.id)),
+        voter_hash="voter_hash_cand_votes_test_99",
+        voter_ip="127.0.0.1"
+    )
+
+    client.force_login(staff_user)
+    resp = client.post(reverse('manage_candidate_delete', args=[cand.id]), follow=True)
+    assert resp.status_code == 200
+    assert resp.redirect_chain[0][0] == reverse('manage_election_candidates', args=[election.id])
+
+    # Candidate remains in database
+    assert Candidate.objects.filter(id=cand.id).exists() is True
+    # Vote record untouched
+    assert Vote.objects.filter(id=vote.id).exists() is True
+    messages = [str(m) for m in resp.context['messages']]
+    assert any("Security Alert" in m and "votes have already been recorded" in m for m in messages)
+
+
+@pytest.mark.django_db
+def test_candidate_deletion_blocked_in_active_election(client, staff_user):
+    """
+    Requirement 3:
+    - Candidate in an Active election cannot be deleted even with zero votes.
+    """
+    now = timezone.now()
+    active_elec = Election.objects.create(
+        title="Active Election Zero Votes",
+        start_time=now - timedelta(days=1),
+        end_time=now + timedelta(days=2),
+    )
+    cand = Candidate.objects.create(election=active_elec, name="Active Zero Vote Cand")
+
+    client.force_login(staff_user)
+    resp = client.post(reverse('manage_candidate_delete', args=[cand.id]), follow=True)
+    assert resp.status_code == 200
+    assert resp.redirect_chain[0][0] == reverse('manage_election_candidates', args=[active_elec.id])
+
+    assert Candidate.objects.filter(id=cand.id).exists() is True
+    messages = [str(m) for m in resp.context['messages']]
+    assert any("Security Alert" in m and "actively ongoing" in m for m in messages)
+
+
+@pytest.mark.django_db
+def test_candidate_deletion_handles_database_error_safely(client, staff_user):
+    """
+    Requirement 5:
+    - Database exceptions during deletion are caught gracefully, transaction rolls back,
+      and user is redirected with an informative error message instead of an unhandled 500.
+    """
+    now = timezone.now()
+    election = Election.objects.create(
+        title="Upcoming DB Error Election",
+        start_time=now + timedelta(days=2),
+        end_time=now + timedelta(days=5),
+    )
+    cand = Candidate.objects.create(election=election, name="DB Error Cand")
+
+    client.force_login(staff_user)
+    with patch.object(Candidate, 'delete', side_effect=DatabaseError("simulated database disconnect")):
+        resp = client.post(reverse('manage_candidate_delete', args=[cand.id]), follow=True)
+
+    assert resp.status_code == 200
+    assert resp.redirect_chain[0][0] == reverse('manage_election_candidates', args=[election.id])
+    assert Candidate.objects.filter(id=cand.id).exists() is True
+    messages = [str(m) for m in resp.context['messages']]
+    assert any("Database error encountered" in m for m in messages)
+
+
+@pytest.mark.django_db
+def test_candidate_deletion_authorization_enforced(client, test_user):
+    """
+    Requirement 6:
+    - Unauthenticated requests are redirected to login.
+    - Non-admin authenticated users are denied access and redirected to home.
+    - Zero mutations occur.
+    """
+    now = timezone.now()
+    election = Election.objects.create(
+        title="Auth Test Election",
+        start_time=now + timedelta(days=2),
+        end_time=now + timedelta(days=5),
+    )
+    cand = Candidate.objects.create(election=election, name="Auth Protected Cand")
+
+    # 1. Unauthenticated request
+    resp_anon = client.post(reverse('manage_candidate_delete', args=[cand.id]))
+    assert resp_anon.status_code == 302
+    assert '/login/' in resp_anon.url
+    assert Candidate.objects.filter(id=cand.id).exists() is True
+
+    # 2. Authenticated non-admin request
+    client.force_login(test_user)
+    resp_user = client.post(reverse('manage_candidate_delete', args=[cand.id]), follow=True)
+    assert resp_user.status_code == 200
+    assert resp_user.redirect_chain[0][0] == reverse('home')
+    assert Candidate.objects.filter(id=cand.id).exists() is True
+    messages = [str(m) for m in resp_user.context['messages']]
+    assert any("Access restricted: Only the authorized administrator" in m for m in messages)
+

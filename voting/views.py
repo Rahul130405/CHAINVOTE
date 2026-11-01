@@ -976,7 +976,6 @@ def manage_candidate_delete(request, candidate_id):
                 cand_locked = (
                     Candidate.objects
                     .select_for_update()
-                    .select_related('election')
                     .filter(id=candidate_id)
                     .first()
                 )
