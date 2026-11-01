@@ -7,11 +7,15 @@ load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-chainvote-dev-key-change-in-production-xyz123')
-
 # Security: DEBUG must be False on Vercel/production
 IS_VERCEL = 'VERCEL' in os.environ
 DEBUG = os.environ.get('DEBUG', 'False' if IS_VERCEL else 'True').lower() in ('true', '1')
+
+SECRET_KEY = os.environ.get('SECRET_KEY')
+if not SECRET_KEY:
+    if IS_VERCEL:
+        raise RuntimeError("CRITICAL: 'SECRET_KEY' environment variable must be set in production.")
+    SECRET_KEY = 'django-insecure-chainvote-dev-key-change-in-production-xyz123'
 
 ALLOWED_HOSTS = [host.strip() for host in os.environ.get('ALLOWED_HOSTS', '*').split(',') if host.strip()]
 
@@ -92,8 +96,8 @@ WHITENOISE_USE_FINDERS = True
 
 CACHES = {
     'default': {
-        'BACKEND': 'django.core.cache.backends.db.DatabaseCache',
-        'LOCATION': 'chainvote_cache_table',
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'chainvote-cache',
         'TIMEOUT': 60,
     }
 }

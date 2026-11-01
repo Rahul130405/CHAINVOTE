@@ -8,6 +8,7 @@ from django.core.management.base import BaseCommand
 from django.contrib.auth.models import User
 from django.utils import timezone
 from datetime import timedelta
+import secrets
 from voting.models import Election, Candidate
 
 
@@ -19,8 +20,9 @@ class Command(BaseCommand):
 
         # Create test voter if not exists
         if not User.objects.filter(username='voter1').exists():
-            User.objects.create_user('voter1', password='voter123')
-            self.stdout.write(self.style.SUCCESS('✅ Test user created: voter1 / voter123'))
+            generated_pwd = f"voter_{secrets.token_urlsafe(10)}"
+            User.objects.create_user('voter1', password=generated_pwd)
+            self.stdout.write(self.style.SUCCESS(f'✅ Test user created: voter1 (one-time local password: {generated_pwd})'))
 
         # ── Active Election: 2026 National Election ───────────────────
         e0, _ = Election.objects.get_or_create(
@@ -92,4 +94,4 @@ class Command(BaseCommand):
         self.stdout.write('')
         self.stdout.write('  🌐 App:        http://127.0.0.1:8000/')
         self.stdout.write('  🔧 Manage:     http://127.0.0.1:8000/manage/')
-        self.stdout.write('  👤 Test voter: voter1 / voter123')
+        self.stdout.write('  👤 Test voter: voter1 (local development account)')

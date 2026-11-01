@@ -7,6 +7,7 @@ Unit and authorization tests for Phase 3 Admin components:
 """
 
 import pytest
+import secrets
 from datetime import timedelta
 from django.conf import settings
 from django.utils import timezone
@@ -906,7 +907,6 @@ def test_postgres_concurrency_vote_blocks_deletion():
     admin_user.is_staff = True
     admin_user.is_superuser = True
     admin_user.is_active = True
-    admin_user.set_password('AdminPass123!')
     admin_user.save()
 
     lock_acquired_event = threading.Event()
@@ -1384,14 +1384,15 @@ def test_failed_login_attempts_are_rate_limited(client):
     from django.core.cache import cache
     cache.clear()
 
+    dummy_attack_pwd = f"attempt_{secrets.token_hex(8)}"
     # 4 failed attempts show invalid credentials
     for i in range(4):
-        resp = client.post('/login/', {'username': 'hacker', 'password': 'badpassword'})
+        resp = client.post('/login/', {'username': 'hacker', 'password': dummy_attack_pwd})
         assert resp.status_code == 200
         assert "Invalid username or password." in resp.content.decode()
 
     # 5th attempt triggers rate limit
-    resp5 = client.post('/login/', {'username': 'hacker', 'password': 'badpassword'})
+    resp5 = client.post('/login/', {'username': 'hacker', 'password': dummy_attack_pwd})
     assert resp5.status_code == 200
     assert "Too many failed login attempts" in resp5.content.decode()
 
@@ -1430,16 +1431,43 @@ def test_login_and_manage_responses_have_no_cache_headers(client, staff_user):
 
 
 @pytest.mark.django_db
-def test_database_cache_backend_and_table_configured():
-    """Verifies DatabaseCache is configured as default cache and table operates correctly."""
+def test_locmem_cache_backend_and_operations(client, active_election):
+    """
+    Verifies:
+    1. Django initializes with the LocMemCache backend.
+    2. Cache set/get/delete operations work properly.
+    3. Landing page home() renders when the cache is empty.
+    4. Landing page home() successfully populates and reads from cache.
+    5. Login, election, results and API routes remain unaffected.
+    """
     from django.core.cache import cache
-    assert settings.CACHES['default']['BACKEND'] == 'django.core.cache.backends.db.DatabaseCache'
-    assert settings.CACHES['default']['LOCATION'] == 'chainvote_cache_table'
+    assert settings.CACHES['default']['BACKEND'] == 'django.core.cache.backends.locmem.LocMemCache'
+    assert settings.CACHES['default']['LOCATION'] == 'chainvote-cache'
 
-    cache.set('test_audit_db_cache_key', 'audit_val', timeout=60)
-    assert cache.get('test_audit_db_cache_key') == 'audit_val'
-    cache.delete('test_audit_db_cache_key')
-    assert cache.get('test_audit_db_cache_key') is None
+    # Cache operations
+    cache.set('test_locmem_key', 'test_locmem_val', timeout=60)
+    assert cache.get('test_locmem_key') == 'test_locmem_val'
+    cache.delete('test_locmem_key')
+    assert cache.get('test_locmem_key') is None
+
+    # Landing page with empty cache
+    cache.clear()
+    assert cache.get('home_landing_context') is None
+    resp_empty = client.get('/')
+    assert resp_empty.status_code == 200
+    cached_context = cache.get('home_landing_context')
+    assert cached_context is not None
+    assert 'active_elections' in cached_context
+
+    # Landing page reads from existing cache
+    resp_cached = client.get('/')
+    assert resp_cached.status_code == 200
+
+    # Key routes unaffected
+    assert client.get('/login/').status_code == 200
+    assert client.get(f'/election/{active_election.id}/').status_code == 200
+    assert client.get(f'/election/{active_election.id}/results/').status_code == 200
+    assert client.get('/api/elections/').status_code == 200
 
 
 @pytest.mark.django_db
@@ -1450,9 +1478,10 @@ def test_login_rate_limiting_shared_cache_persistence(client):
     cache.clear()
     _clear_fallback_failures('127.0.0.1')
 
+    dummy_attack_pwd = f"attempt_{secrets.token_hex(8)}"
     # Record 3 failures
     for _ in range(3):
-        client.post('/login/', {'username': 'hacker', 'password': 'wrongpassword'})
+        client.post('/login/', {'username': 'hacker', 'password': dummy_attack_pwd})
 
     # Verify counter in shared database cache
     failures_in_db = cache.get('login_failures_127.0.0.1')
@@ -1465,7 +1494,7 @@ def test_login_rate_limiting_shared_cache_persistence(client):
     assert cache.get('login_failures_127.0.0.1') == 3
 
     # Next attempt increments from the DB counter
-    client.post('/login/', {'username': 'hacker', 'password': 'wrongpassword'})
+    client.post('/login/', {'username': 'hacker', 'password': dummy_attack_pwd})
     assert cache.get('login_failures_127.0.0.1') == 4
 
     cache.clear()
@@ -1485,15 +1514,16 @@ def test_login_rate_limiting_fallback_on_cache_error(client):
     cache.clear()
     _clear_fallback_failures('127.0.0.1')
 
+    dummy_attack_pwd = f"attempt_{secrets.token_hex(8)}"
     with patch('django.core.cache.cache.get', side_effect=DatabaseError("DB connection lost")),          patch('django.core.cache.cache.set', side_effect=DatabaseError("DB connection lost")):
         # 4 failed attempts show invalid credentials
         for _ in range(4):
-            resp = client.post('/login/', {'username': 'hacker', 'password': 'wrongpassword'})
+            resp = client.post('/login/', {'username': 'hacker', 'password': dummy_attack_pwd})
             assert resp.status_code == 200
             assert "Invalid username or password." in resp.content.decode()
 
         # 5th attempt triggers rate limit lockout despite cache failure
-        resp5 = client.post('/login/', {'username': 'hacker', 'password': 'wrongpassword'})
+        resp5 = client.post('/login/', {'username': 'hacker', 'password': dummy_attack_pwd})
         assert resp5.status_code == 200
         assert "Too many failed login attempts" in resp5.content.decode()
 

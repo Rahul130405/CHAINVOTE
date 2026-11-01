@@ -15,6 +15,7 @@ Comprehensive verification of all Phase 2 Voter Experience deliverables:
 """
 
 import os
+import secrets
 import time
 import pytest
 from selenium.webdriver.common.by import By
@@ -79,7 +80,8 @@ def test_phase2_authentication_and_accessibility(browser, live_server, staff_use
 
     # 1. Test Password Show/Hide Toggle on Login
     assert login_page.get_password_input_type() == "password"
-    login_page.enter_password("SecretPass123!")
+    dummy_toggle_input = f"Toggle_{secrets.token_urlsafe(8)}!"
+    login_page.enter_password(dummy_toggle_input)
     login_page.toggle_password_visibility()
     assert login_page.get_password_input_type() == "text"
     login_page.toggle_password_visibility()
@@ -106,7 +108,8 @@ def test_phase2_authentication_and_accessibility(browser, live_server, staff_use
     save_screenshot(browser, "02_login_page.png")
 
     # 3. Test Invalid Login
-    login_page.login("non_existent_user", "WrongPassword123!")
+    dummy_wrong_pwd = f"Wrong_{secrets.token_urlsafe(8)}!"
+    login_page.login("non_existent_user", dummy_wrong_pwd)
     assert login_page.has_error_alert()
     assert "Invalid username or password" in login_page.get_error_message()
 

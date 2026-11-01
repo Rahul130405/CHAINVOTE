@@ -12,6 +12,7 @@ Provides:
 
 import hashlib
 import os
+import secrets
 import uuid
 from datetime import timedelta
 import pytest
@@ -88,7 +89,7 @@ def test_user(db):
     Creates an isolated standard voter account in the Django test database.
     Attaches raw_password for automated form login tests.
     """
-    raw_pass = "VoterTest@123"
+    raw_pass = f"TestPass_{secrets.token_urlsafe(12)}!"
     user = User.objects.create_user(
         username="test_voter",
         password=raw_pass,
@@ -103,7 +104,7 @@ def staff_user(db):
     """
     Creates the authorized single-admin (yash) account in the test database.
     """
-    raw_pass = "StaffOfficer@123"
+    raw_pass = f"StaffPass_{secrets.token_urlsafe(12)}!"
     user = User.objects.create_user(
         username="yash",
         password=raw_pass,
@@ -119,7 +120,7 @@ def other_staff_user(db):
     """
     Creates a non-yash staff account to verify it is strictly denied admin access.
     """
-    raw_pass = "OtherStaffPass@123"
+    raw_pass = f"OtherStaff_{secrets.token_urlsafe(12)}!"
     user = User.objects.create_user(
         username="other_staff",
         password=raw_pass,
@@ -135,7 +136,7 @@ def other_superuser(db):
     """
     Creates a non-yash superuser account to verify it is strictly denied admin access.
     """
-    raw_pass = "OtherSuperPass@123"
+    raw_pass = f"OtherSuper_{secrets.token_urlsafe(12)}!"
     user = User.objects.create_superuser(
         username="other_super",
         password=raw_pass,

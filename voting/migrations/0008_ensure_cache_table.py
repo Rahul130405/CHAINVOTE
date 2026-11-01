@@ -27,7 +27,7 @@ def ensure_cache_table(apps, schema_editor):
 
     # 2. Fail-Fast Execution: Invoke Django's core createcachetable
     # Exceptions are allowed to bubble up naturally without blind suppression
-    call_command('createcachetable', database=connection.alias)
+    call_command('createcachetable', table_name, database=connection.alias)
 
     # 3. Post-Creation Hard Assertion: Verify the table physically exists
     post_tables = connection.introspection.table_names()

@@ -4,6 +4,7 @@ Covers registration disabled, non-admin login rejection, yash single-admin login
 """
 
 import pytest
+import secrets
 from django.urls import reverse
 from tests.pages.login_page import LoginPage
 from tests.pages.voting_booth_page import VotingBoothPage
@@ -25,10 +26,11 @@ def test_tc_auth_02_registration_post_blocked(client):
     TC-AUTH-02: Direct HTTP POST to /register/ is rejected with 404.
     Zero accounts are created.
     """
+    dummy_pass = f"Attempt_{secrets.token_urlsafe(12)}!"
     resp = client.post('/register/', {
         'username': 'attempted_voter',
-        'password': 'AnyPassword123!',
-        'password2': 'AnyPassword123!'
+        'password': dummy_pass,
+        'password2': dummy_pass
     })
     assert resp.status_code == 404
 
