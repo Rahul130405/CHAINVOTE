@@ -343,11 +343,8 @@ def test_api_cast_vote_accepts_valid_10_char_id(client, active_election):
 # ─────────────────────────────────────────────────────────────
 
 def _login_voter(browser, live_server, test_user):
-    from tests.pages.login_page import LoginPage
-    login_page = LoginPage(browser, live_server.url)
-    login_page.navigate()
-    login_page.login(test_user.username, test_user.raw_password)
-    login_page.wait_for_user_logged_in()
+    """Account-free voting: Voters enter the booth directly without an account."""
+    pass
 
 
 @pytest.mark.django_db(transaction=True)

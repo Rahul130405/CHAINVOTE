@@ -5,7 +5,6 @@ urlpatterns = [
     # ── Frontend Routes ──────────────────────────────
     path('', views.home, name='home'),
     path('login/', views.login_view, name='login'),
-    path('register/', views.register_view, name='register'),
     path('logout/', views.logout_view, name='logout'),
     path('election/<int:election_id>/', views.election_detail, name='election_detail'),
     path('election/<int:election_id>/vote/', views.cast_vote, name='cast_vote'),
@@ -16,6 +15,7 @@ urlpatterns = [
     path('manage/', views.manage_dashboard, name='manage_dashboard'),
     path('manage/elections/new/', views.manage_election_create, name='manage_election_create'),
     path('manage/elections/<int:election_id>/edit/', views.manage_election_edit, name='manage_election_edit'),
+    path('manage/elections/<int:election_id>/delete/', views.manage_election_delete, name='manage_election_delete'),
     path('manage/elections/<int:election_id>/candidates/', views.manage_election_candidates, name='manage_election_candidates'),
     path('manage/elections/<int:election_id>/candidates/new/', views.manage_candidate_create, name='manage_candidate_create'),
     path('manage/candidates/<int:candidate_id>/edit/', views.manage_candidate_edit, name='manage_candidate_edit'),

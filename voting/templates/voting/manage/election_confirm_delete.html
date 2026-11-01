@@ -1,0 +1,53 @@
+{% extends 'voting/base.html' %}
+
+{% block title %}Confirm Election Deletion | ChainVote{% endblock %}
+
+{% block content %}
+<div class="max-w-xl mx-auto space-y-6">
+    <!-- Breadcrumb -->
+    <div>
+        <a href="{% url 'manage_dashboard' %}" class="inline-flex items-center text-xs font-semibold text-gray-500 hover:text-black transition">
+            ← Cancel and Return to Elections Roster
+        </a>
+    </div>
+
+    <!-- Confirmation Card -->
+    <div class="bg-white/80 glass-panel border border-red-200/80 rounded-2xl p-8 shadow-sm">
+        <div class="flex items-center space-x-3 mb-4">
+            <div class="w-10 h-10 rounded-full bg-red-100 text-red-600 flex items-center justify-center font-bold text-lg">
+                ⚠️
+            </div>
+            <div>
+                <h1 class="text-xl font-extrabold tracking-tight text-gray-900">Confirm Election Deletion</h1>
+                <p class="text-xs text-gray-500">This action will permanently delete this election and all its associated candidates.</p>
+            </div>
+        </div>
+
+        <div class="p-4 rounded-xl bg-gray-50 border border-gray-200/70 text-sm space-y-2 mb-6">
+            <div><span class="font-bold text-gray-700">Election Title:</span> <span class="font-semibold text-gray-900">{{ election.title }}</span></div>
+            <div><span class="font-bold text-gray-700">Election Status:</span> <span class="text-xs uppercase font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">{{ election.status }}</span></div>
+            <div><span class="font-bold text-gray-700">Candidates:</span> <span class="text-gray-900">{{ election.candidates.count }}</span></div>
+            <div class="text-xs text-emerald-700 font-semibold bg-emerald-50 px-2.5 py-1.5 rounded-lg border border-emerald-200 inline-block">
+                ✓ Verified: Zero recorded votes and no blockchain ledger records associated with this election.
+            </div>
+            <p class="text-[11px] text-gray-500">
+                Rule: An election may be deleted only if it has zero recorded votes, has no associated blockchain ledger entries, and is not currently active.
+            </p>
+        </div>
+
+        <p class="text-xs text-gray-600 mb-6 font-medium">
+            Are you sure you want to delete this election? This action cannot be undone.
+        </p>
+
+        <form method="post" class="flex items-center justify-end space-x-3" id="confirm-delete-election-form">
+            {% csrf_token %}
+            <a href="{% url 'manage_dashboard' %}" class="px-5 py-2.5 rounded-xl border border-gray-300 text-gray-700 text-xs font-semibold hover:bg-gray-50 transition">
+                Cancel
+            </a>
+            <button type="submit" id="btn-confirm-delete-election" class="px-6 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-semibold shadow-sm transition-all transform hover:scale-[1.01] active:scale-[0.99]">
+                Yes, Delete Election
+            </button>
+        </form>
+    </div>
+</div>
+{% endblock %}

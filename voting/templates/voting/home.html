@@ -103,15 +103,9 @@
                     <span id="lang-text">हिंदी</span>
                 </button>
 
-                {% if request.user.is_authenticated and request.user.is_staff or request.user.is_superuser %}
-                <a href="{% url 'manage_dashboard' %}" class="text-xs md:text-sm font-semibold text-blue-600 hover:text-blue-800 transition" id="nav-manage-link">Manage</a>
-                {% endif %}
-                
                 {% if request.user.is_authenticated %}
                     <span class="user-greeting-badge text-xs md:text-sm font-medium text-gray-700 flex items-center">👤 {{ request.user.username }}</span>
                     <a href="{% url 'logout' %}" class="text-xs md:text-sm font-medium text-gray-600 hover:text-black transition" data-i18n="nav_signout">Sign Out</a>
-                {% else %}
-                    <a href="{% url 'login' %}" class="text-xs md:text-sm font-medium bg-black text-white px-4 py-1.5 rounded-full hover:scale-105 transition transform shadow-sm" data-i18n="nav_login">Log In</a>
                 {% endif %}
             </div>
         </div>
@@ -178,7 +172,7 @@
                     <div class="p-4 rounded-2xl bg-gray-50/80 border border-gray-200/60">
                         <div class="w-8 h-8 rounded-full bg-blue-600 text-white font-bold flex items-center justify-center text-sm mb-3">1</div>
                         <h3 class="font-bold text-sm text-gray-900 mb-1" data-i18n="step1_title">Sign In</h3>
-                        <p class="text-xs text-gray-500" data-i18n="step1_desc">Log in with your voter account or register a new one.</p>
+                        <p class="text-xs text-gray-500" data-i18n="step1_desc">Sign in with your Voter ID directly at the booth — no registration required.</p>
                     </div>
 
                     <div class="p-4 rounded-2xl bg-gray-50/80 border border-gray-200/60">
@@ -289,9 +283,15 @@
                                 <a href="{% url 'results' election.id %}" class="flex-1 text-center bg-gray-100 hover:bg-gray-200 text-gray-800 py-2.5 rounded-full text-xs font-semibold transition" data-i18n="btn_results">
                                     Results
                                 </a>
+                                {% if request.user.is_authenticated and request.user.is_staff or request.user.is_superuser %}
                                 <a href="{% url 'blockchain_explorer' election.id %}" class="flex-1 text-center bg-blue-50 hover:bg-blue-100 text-blue-700 py-2.5 rounded-full text-xs font-semibold transition" data-i18n="btn_audit">
                                     Audit Chain
                                 </a>
+                                {% else %}
+                                <span class="flex-1 text-center bg-gray-50 text-gray-500 py-2.5 rounded-full text-xs font-medium border border-gray-200 cursor-default" title="Ledger auditing is restricted to administrative oversight">
+                                    Audit Chain
+                                </span>
+                                {% endif %}
                             </div>
                         </div>
                         {% empty %}
@@ -374,11 +374,7 @@
                 Secure & Decentralized Voting Protocol
             </p>
             
-            {% if request.user.is_authenticated and request.user.is_staff or request.user.is_superuser %}
-            <div class="flex space-x-4 text-xs font-semibold">
-                <a href="{% url 'manage_dashboard' %}" class="text-gray-600 hover:text-black transition" id="footer-manage-link">Manage Portal</a>
-            </div>
-            {% endif %}
+
         </div>
     </footer>
 
@@ -394,7 +390,7 @@
                 steps_subheading: 'Follow these 4 simple steps to participate in any election',
                 steps_badge: 'Simple & Secure',
                 step1_title: 'Sign In',
-                step1_desc: 'Log in with your voter account or register a new one.',
+                step1_desc: 'Sign in with your Voter ID directly at the booth — no registration required.',
                 step2_title: 'Choose Election',
                 step2_desc: 'Select an ongoing active election below and enter the booth.',
                 step3_title: 'Verify & Select',
@@ -442,7 +438,7 @@
                 steps_subheading: 'किसी भी चुनाव में भाग लेने के लिए इन 4 सरल चरणों का पालन करें',
                 steps_badge: 'सरल एवं सुरक्षित',
                 step1_title: '1. साइन इन करें',
-                step1_desc: 'अपने वोटर खाते से लॉगिन करें अथवा नया खाता बनाएं।',
+                step1_desc: 'मतदान कक्ष में सीधे अपनी वोटर आईडी से साइन इन करें — किसी पंजीकरण की आवश्यकता नहीं है।',
                 step2_title: '2. चुनाव चुनें',
                 step2_desc: 'नीचे दिए गए चालू चुनाव का चयन करें और बूथ में प्रवेश करें।',
                 step3_title: '3. पहचान व उम्मीदवार चुनें',

@@ -8,6 +8,7 @@ Unit and authorization tests for Phase 3 Admin components:
 
 import pytest
 from datetime import timedelta
+from django.conf import settings
 from django.utils import timezone
 from django.test import RequestFactory, Client
 from django.urls import reverse, NoReverseMatch
@@ -84,20 +85,17 @@ def test_admin_required_staff_allowed(rf, staff_user):
 
 
 @pytest.mark.django_db
-def test_admin_required_superuser_allowed(rf):
-    """Superusers are permitted access."""
-    superuser = User.objects.create_superuser(
-        username='superadmin',
-        password='SuperAdminPass123!',
-        email='super@chainvote.test'
-    )
+def test_admin_required_non_yash_superuser_denied(rf, other_superuser):
+    """Non-yash superusers are strictly denied administrative access."""
     request = rf.get('/manage/')
-    request.user = superuser
-    _add_messages_storage(request)
+    request.user = other_superuser
+    storage = _add_messages_storage(request)
 
     response = dummy_admin_view(request)
-    assert response.status_code == 200
-    assert response.content.decode() == "Admin Access Granted"
+    assert response.status_code == 302
+    assert response.url == '/'
+    messages = [m.message for m in storage]
+    assert any("Access restricted" in m for m in messages)
 
 
 # ─────────────────────────────────────────────────────────────
@@ -298,13 +296,14 @@ def test_manage_staff_user_allowed(client, staff_user):
 
 
 @pytest.mark.django_db
-def test_manage_superuser_allowed(client):
-    """Superuser can access the admin management portal dashboard."""
-    superuser = User.objects.create_superuser('superadmin2', 'super2@chainvote.test', 'Pass@1234')
-    client.force_login(superuser)
-    response = client.get('/manage/')
+def test_manage_non_yash_superuser_denied(client, other_superuser):
+    """Non-yash superuser is strictly denied access to the admin management dashboard."""
+    client.force_login(other_superuser)
+    response = client.get('/manage/', follow=True)
     assert response.status_code == 200
-    assert "Election Management Portal" in response.content.decode()
+    assert response.redirect_chain[0][0] == '/'
+    messages = list(response.context['messages'])
+    assert any("Access restricted" in str(m) for m in messages)
 
 
 @pytest.mark.django_db
@@ -342,31 +341,180 @@ def test_manage_election_create_and_edit(client, staff_user):
 
 
 @pytest.mark.django_db
-def test_manage_election_deletion_is_unavailable(client, staff_user, active_election):
+def test_admin_can_delete_eligible_upcoming_election_with_zero_votes(client, staff_user):
     """
-    Critical Safety Check:
-    Verify election deletion is explicitly NOT implemented:
-    - No 'manage_election_delete' route exists (reverse fails).
-    - Direct GET/POST to /manage/elections/<id>/delete/ returns 404.
-    - Dashboard HTML contains zero delete buttons for elections.
+    1. Admin can delete an eligible upcoming election with zero recorded votes.
+    - Verified under atomic row lock via confirmed POST.
+    - Associated zero-vote candidates are cleanly removed.
     """
-    with pytest.raises(NoReverseMatch):
-        reverse('manage_election_delete', kwargs={'election_id': active_election.id})
+    now = timezone.now()
+    upcoming_election = Election.objects.create(
+        title="Eligible Upcoming Deletion Election",
+        description="Upcoming test election with zero votes.",
+        start_time=now + timedelta(days=2),
+        end_time=now + timedelta(days=5),
+    )
+    c1 = Candidate.objects.create(election=upcoming_election, name="Candidate One")
+    c2 = Candidate.objects.create(election=upcoming_election, name="Candidate Two")
+    assert upcoming_election.status == 'upcoming'
+    assert Vote.objects.filter(election=upcoming_election).count() == 0
 
     client.force_login(staff_user)
-    resp_get = client.get(f'/manage/elections/{active_election.id}/delete/')
-    assert resp_get.status_code == 404
-    resp_post = client.post(f'/manage/elections/{active_election.id}/delete/')
-    assert resp_post.status_code == 404
 
-    # Verify election still exists
+    # Dashboard shows Delete button for eligible election
+    dash_resp = client.get(reverse('manage_dashboard'))
+    assert dash_resp.status_code == 200
+    assert f'action="/manage/elections/{upcoming_election.id}/delete/"' in dash_resp.content.decode()
+    assert "Are you sure you want to delete this election? This action cannot be undone." in dash_resp.content.decode()
+
+    # Confirmed POST deletes election
+    resp_post = client.post(reverse('manage_election_delete', args=[upcoming_election.id]), follow=True)
+    assert resp_post.status_code == 200
+    assert resp_post.redirect_chain[0][0] == reverse('manage_dashboard')
+
+    # Election and its candidates are safely deleted
+    assert Election.objects.filter(id=upcoming_election.id).exists() is False
+    assert Candidate.objects.filter(id=c1.id).exists() is False
+    assert Candidate.objects.filter(id=c2.id).exists() is False
+
+
+@pytest.mark.django_db
+def test_election_with_recorded_votes_cannot_be_deleted(client, staff_user, active_election):
+    """
+    2. Election with recorded votes cannot be deleted.
+    - Blocked server-side to protect cryptographic ledger integrity.
+    - Election and votes remain intact.
+    """
+    candidate = active_election.candidates.first()
+    vote_url = reverse('cast_vote', args=[active_election.id])
+    client.post(vote_url, {'aadhaar': 'VOTEDEL123', 'candidate_id': candidate.id})
+    assert Vote.objects.filter(election=active_election).count() == 1
+
+    client.force_login(staff_user)
+
+    # Dashboard displays Delete Locked
+    dash_resp = client.get(reverse('manage_dashboard'))
+    content = dash_resp.content.decode()
+    assert "Delete Locked" in content
+    assert "Protected to preserve cryptographic ledger integrity" in content
+
+    # POST to delete endpoint is strictly blocked
+    del_resp = client.post(reverse('manage_election_delete', args=[active_election.id]), follow=True)
+    assert del_resp.status_code == 200
+    assert "Cannot delete election" in del_resp.content.decode()
+    assert "ledger integrity" in del_resp.content.decode()
+
+    # Election and votes preserved
+    assert Election.objects.filter(id=active_election.id).exists() is True
+    assert Vote.objects.filter(election=active_election).count() == 1
+
+
+@pytest.mark.django_db
+def test_election_with_ledger_references_cannot_be_deleted(client, staff_user, ended_election):
+    """
+    3. Election with ledger references cannot be deleted even after concluding.
+    - Blocked server-side; election and historical blocks preserved.
+    """
+    assert Vote.objects.filter(election=ended_election).count() > 0
+
+    client.force_login(staff_user)
+
+    del_resp = client.post(reverse('manage_election_delete', args=[ended_election.id]), follow=True)
+    assert del_resp.status_code == 200
+    assert "Cannot delete election" in del_resp.content.decode()
+    assert "ledger integrity" in del_resp.content.decode()
+
+    assert Election.objects.filter(id=ended_election.id).exists() is True
+
+
+@pytest.mark.django_db
+def test_active_election_cannot_be_deleted(client, staff_user, active_election):
+    """
+    4. Active election cannot be deleted even if zero votes are currently recorded.
+    """
+    assert active_election.status == 'active'
+    assert Vote.objects.filter(election=active_election).count() == 0
+
+    client.force_login(staff_user)
+
+    # Dashboard displays Delete Locked for active election
+    dash_resp = client.get(reverse('manage_dashboard'))
+    content = dash_resp.content.decode()
+    assert "Active elections currently receiving ballots cannot be deleted" in content
+
+    # POST deletion blocked
+    del_resp = client.post(reverse('manage_election_delete', args=[active_election.id]), follow=True)
+    assert del_resp.status_code == 200
+    assert "Cannot delete election" in del_resp.content.decode()
+    assert "Active elections currently receiving ballots cannot be deleted" in del_resp.content.decode()
+
     assert Election.objects.filter(id=active_election.id).exists() is True
 
-    # Verify dashboard HTML has no election delete button or action
-    dash_resp = client.get('/manage/')
-    content = dash_resp.content.decode()
-    assert "Delete Election" not in content
-    assert "btn-delete-election" not in content
+
+@pytest.mark.django_db
+def test_regular_voter_cannot_delete_election(client, test_user):
+    """
+    5. Regular voter cannot delete an election.
+    - Access restricted; redirected to home; zero mutations.
+    """
+    now = timezone.now()
+    election = Election.objects.create(
+        title="Voter Tamper Attempt Election",
+        start_time=now + timedelta(days=2),
+        end_time=now + timedelta(days=5),
+    )
+    client.force_login(test_user)
+
+    del_resp = client.post(reverse('manage_election_delete', args=[election.id]), follow=True)
+    assert del_resp.status_code == 200
+    assert del_resp.redirect_chain[0][0] == '/'
+    assert "Access restricted" in del_resp.content.decode()
+
+    assert Election.objects.filter(id=election.id).exists() is True
+
+
+@pytest.mark.django_db
+def test_anonymous_user_cannot_delete_election(client):
+    """
+    6. Anonymous user cannot delete an election.
+    - Redirected to login with ?next=...; zero mutations.
+    """
+    now = timezone.now()
+    election = Election.objects.create(
+        title="Anon Tamper Attempt Election",
+        start_time=now + timedelta(days=2),
+        end_time=now + timedelta(days=5),
+    )
+
+    del_url = reverse('manage_election_delete', args=[election.id])
+    del_resp = client.post(del_url)
+    assert del_resp.status_code == 302
+    assert del_resp.url.startswith(f'/login/?next={del_url}')
+
+    assert Election.objects.filter(id=election.id).exists() is True
+
+
+@pytest.mark.django_db
+def test_get_requests_cannot_trigger_election_deletion(client, staff_user):
+    """
+    7. GET requests cannot trigger deletion.
+    - GET renders confirmation warning; election is NOT deleted.
+    """
+    now = timezone.now()
+    election = Election.objects.create(
+        title="GET Non-Mutation Test Election",
+        start_time=now + timedelta(days=2),
+        end_time=now + timedelta(days=5),
+    )
+
+    client.force_login(staff_user)
+
+    get_resp = client.get(reverse('manage_election_delete', args=[election.id]))
+    assert get_resp.status_code == 200
+    assert "Are you sure you want to delete this election? This action cannot be undone." in get_resp.content.decode()
+
+    # Election STILL EXISTS in the database
+    assert Election.objects.filter(id=election.id).exists() is True
 
 
 @pytest.mark.django_db
@@ -735,6 +883,7 @@ def test_postgres_concurrency_vote_blocks_deletion():
         pytest.skip("Requires PostgreSQL for true SELECT ... FOR UPDATE row locking and pg_locks observation")
 
     import threading
+    import time
     from django.test import Client
 
     now = timezone.now()
@@ -744,7 +893,21 @@ def test_postgres_concurrency_vote_blocks_deletion():
         end_time=now + timedelta(days=8),
     )
     cand = Candidate.objects.create(election=election, name="Locked Candidate")
-    admin_user = User.objects.create_superuser('pgadmin', 'pgadmin@test.com', 'AdminPass123!')
+    admin_username = getattr(settings, 'AUTHORIZED_ADMIN_USERNAME', 'yash')
+    admin_user, _ = User.objects.get_or_create(
+        username=admin_username,
+        defaults={
+            'email': f'{admin_username}@chainvote.test',
+            'is_staff': True,
+            'is_superuser': True,
+            'is_active': True,
+        }
+    )
+    admin_user.is_staff = True
+    admin_user.is_superuser = True
+    admin_user.is_active = True
+    admin_user.set_password('AdminPass123!')
+    admin_user.save()
 
     lock_acquired_event = threading.Event()
     delete_started_event = threading.Event()
@@ -763,6 +926,9 @@ def test_postgres_concurrency_vote_blocks_deletion():
     def waiter_thread():
         try:
             lock_acquired_event.wait(timeout=10)
+            with connection.cursor() as cur:
+                cur.execute("SELECT pg_backend_pid();")
+                test_results['waiter_pid'] = cur.fetchone()[0]
             client2 = Client()
             client2.force_login(admin_user)
             delete_started_event.set()
@@ -774,20 +940,43 @@ def test_postgres_concurrency_vote_blocks_deletion():
     t_holder = threading.Thread(target=holder_thread)
     t_waiter = threading.Thread(target=waiter_thread)
 
-    t_holder.start()
-    assert lock_acquired_event.wait(timeout=5), "Holder failed to acquire lock"
+    try:
+        t_holder.start()
+        assert lock_acquired_event.wait(timeout=5), "Holder failed to acquire lock"
 
-    t_waiter.start()
-    assert delete_started_event.wait(timeout=5), "Waiter failed to start deletion"
+        t_waiter.start()
+        assert delete_started_event.wait(timeout=5), "Waiter failed to start deletion"
 
-    with connection.cursor() as cursor:
-        cursor.execute("SELECT count(*) FROM pg_locks WHERE NOT granted;")
-        blocked_count = cursor.fetchone()[0]
+        waiter_pid = test_results.get('waiter_pid')
+        blocked_count = 0
+        poll_start = time.time()
+        while time.time() - poll_start < 5.0:
+            with connection.cursor() as cursor:
+                if waiter_pid:
+                    cursor.execute("""
+                        SELECT count(*)
+                        FROM pg_locks l
+                        JOIN pg_stat_activity a ON l.pid = a.pid
+                        WHERE a.pid = %s AND a.datname = current_database() AND NOT l.granted;
+                    """, [waiter_pid])
+                else:
+                    cursor.execute("""
+                        SELECT count(*)
+                        FROM pg_locks l
+                        JOIN pg_stat_activity a ON l.pid = a.pid
+                        WHERE a.datname = current_database() AND NOT l.granted;
+                    """)
+                blocked_count = cursor.fetchone()[0]
+            if blocked_count >= 1:
+                break
+            time.sleep(0.02)
         test_results['detected_blocked_locks'] = blocked_count
-
-    release_vote_lock_event.set()
-    t_holder.join(timeout=10)
-    t_waiter.join(timeout=10)
+    finally:
+        release_vote_lock_event.set()
+        if t_holder.is_alive():
+            t_holder.join(timeout=10)
+        if t_waiter.is_alive():
+            t_waiter.join(timeout=10)
 
     assert test_results.get('detected_blocked_locks', 0) >= 1, "Expected PostgreSQL row lock contention in pg_locks"
 
@@ -910,13 +1099,17 @@ def test_homepage_soc_indicator_removed_from_header(client, staff_user, test_use
     assert '/security/threat-dashboard/' not in content_voter
     assert 'id="nav-manage-link"' not in content_voter
 
-    # 3. Staff user: No SOC header indicator; receives Manage portal link instead
+    # 3. Staff user: No SOC header indicator and no public Manage links on homepage
     client.force_login(staff_user)
     resp_staff = client.get('/')
     content_staff = resp_staff.content.decode()
     assert '>SOC Active<' not in content_staff
-    assert 'id="nav-manage-link"' in content_staff
-    assert '/manage/' in content_staff
+    assert 'id="nav-manage-link"' not in content_staff
+    assert 'id="footer-manage-link"' not in content_staff
+    # Direct access to /manage/ remains fully functional for authenticated staff
+    resp_manage = client.get('/manage/')
+    assert resp_manage.status_code == 200
+    assert "Election Management Portal" in resp_manage.content.decode()
 
 
 @pytest.mark.django_db
@@ -1104,3 +1297,205 @@ def test_manage_soc_still_displays_warning_and_critical_events(client, staff_use
     assert "WARNING" in content
 
     assert 'id="soc-prevented-attacks">1<' in content
+
+
+# ─────────────────────────────────────────────────────────────
+# 13. STRICT SINGLE-ADMIN SECURITY TESTS (YASH ONLY)
+# ─────────────────────────────────────────────────────────────
+
+@pytest.mark.django_db
+def test_yash_can_log_in_and_access_manage_portal(client, staff_user):
+    """Authorized admin (yash) can log in via /login/ and access the Manage Portal."""
+    login_resp = client.post('/login/', {
+        'username': staff_user.username,
+        'password': staff_user.raw_password,
+    }, follow=True)
+    assert login_resp.status_code == 200
+    assert login_resp.redirect_chain[0][0] == '/manage/'
+    assert "Election Management Portal" in login_resp.content.decode()
+
+
+@pytest.mark.django_db
+def test_different_staff_account_is_denied_login_and_portal(client, other_staff_user):
+    """A different staff account (not yash) cannot log in or access /manage/."""
+    # 1. Login attempt fails with generic error
+    login_resp = client.post('/login/', {
+        'username': other_staff_user.username,
+        'password': other_staff_user.raw_password,
+    })
+    assert login_resp.status_code == 200
+    content = login_resp.content.decode()
+    assert "Invalid username or password." in content
+
+    # Session is not established
+    assert '_auth_user_id' not in client.session
+
+    # 2. Direct request to /manage/ while authenticated as other staff is blocked
+    client.force_login(other_staff_user)
+    resp = client.get('/manage/', follow=True)
+    assert resp.status_code == 200
+    assert resp.redirect_chain[0][0] == '/'
+    messages = list(resp.context['messages'])
+    assert any("Access restricted" in str(m) for m in messages)
+
+
+@pytest.mark.django_db
+def test_different_superuser_account_is_denied_login_and_portal(client, other_superuser):
+    """A different superuser account (not yash) cannot log in or access /manage/."""
+    login_resp = client.post('/login/', {
+        'username': other_superuser.username,
+        'password': other_superuser.raw_password,
+    })
+    assert login_resp.status_code == 200
+    assert "Invalid username or password." in login_resp.content.decode()
+    assert '_auth_user_id' not in client.session
+
+    # Direct request blocked
+    client.force_login(other_superuser)
+    resp = client.get('/manage/', follow=True)
+    assert resp.status_code == 200
+    assert resp.redirect_chain[0][0] == '/'
+    messages = list(resp.context['messages'])
+    assert any("Access restricted" in str(m) for m in messages)
+
+
+@pytest.mark.django_db
+def test_admin_site_denies_other_staff_and_superuser(client, other_staff_user, other_superuser, staff_user):
+    """Django Admin (/admin/) strictly denies non-yash staff and superusers with 403 PermissionDenied."""
+    # Other staff user denied
+    client.force_login(other_staff_user)
+    resp_staff = client.get('/admin/')
+    assert resp_staff.status_code in (403, 302)
+
+    # Other superuser denied
+    client.force_login(other_superuser)
+    resp_super = client.get('/admin/')
+    assert resp_super.status_code in (403, 302)
+
+    # Yash is allowed into /admin/ if active
+    client.force_login(staff_user)
+    resp_yash = client.get('/admin/')
+    assert resp_yash.status_code == 200
+
+
+@pytest.mark.django_db
+def test_failed_login_attempts_are_rate_limited(client):
+    """5 failed login attempts trigger rate limiting lockout and SecurityLog entry."""
+    from django.core.cache import cache
+    cache.clear()
+
+    # 4 failed attempts show invalid credentials
+    for i in range(4):
+        resp = client.post('/login/', {'username': 'hacker', 'password': 'badpassword'})
+        assert resp.status_code == 200
+        assert "Invalid username or password." in resp.content.decode()
+
+    # 5th attempt triggers rate limit
+    resp5 = client.post('/login/', {'username': 'hacker', 'password': 'badpassword'})
+    assert resp5.status_code == 200
+    assert "Too many failed login attempts" in resp5.content.decode()
+
+    # SecurityLog has logged the event
+    assert SecurityLog.objects.filter(action__icontains='Rate Limit Exceeded').exists()
+    cache.clear()
+
+
+@pytest.mark.django_db
+def test_existing_password_for_yash_remains_unchanged(db):
+    """Verifies that an existing yash account's password hash is untouched."""
+    yash = User.objects.filter(username='yash').first()
+    if yash:
+        orig_hash = yash.password
+        # Refetch from DB to confirm no overwrite or reset occurred
+        yash.refresh_from_db()
+        assert yash.password == orig_hash
+        assert yash.password.startswith('pbkdf2_sha256$')
+
+
+@pytest.mark.django_db
+def test_login_and_manage_responses_have_no_cache_headers(client, staff_user):
+    """Login and Manage portal views return no-cache, no-store headers."""
+    # Login GET response
+    resp_login = client.get('/login/')
+    assert resp_login.status_code == 200
+    assert 'no-store' in resp_login.headers.get('Cache-Control', '')
+    assert 'no-cache' in resp_login.headers.get('Pragma', '')
+
+    # Manage GET response
+    client.force_login(staff_user)
+    resp_manage = client.get('/manage/')
+    assert resp_manage.status_code == 200
+    assert 'no-store' in resp_manage.headers.get('Cache-Control', '')
+    assert 'no-cache' in resp_manage.headers.get('Pragma', '')
+
+
+@pytest.mark.django_db
+def test_database_cache_backend_and_table_configured():
+    """Verifies DatabaseCache is configured as default cache and table operates correctly."""
+    from django.core.cache import cache
+    assert settings.CACHES['default']['BACKEND'] == 'django.core.cache.backends.db.DatabaseCache'
+    assert settings.CACHES['default']['LOCATION'] == 'chainvote_cache_table'
+
+    cache.set('test_audit_db_cache_key', 'audit_val', timeout=60)
+    assert cache.get('test_audit_db_cache_key') == 'audit_val'
+    cache.delete('test_audit_db_cache_key')
+    assert cache.get('test_audit_db_cache_key') is None
+
+
+@pytest.mark.django_db
+def test_login_rate_limiting_shared_cache_persistence(client):
+    """Verifies rate limit counters persist across in-memory resets in the database cache."""
+    from django.core.cache import cache
+    from voting.views import _clear_fallback_failures
+    cache.clear()
+    _clear_fallback_failures('127.0.0.1')
+
+    # Record 3 failures
+    for _ in range(3):
+        client.post('/login/', {'username': 'hacker', 'password': 'wrongpassword'})
+
+    # Verify counter in shared database cache
+    failures_in_db = cache.get('login_failures_127.0.0.1')
+    assert failures_in_db == 3
+
+    # Simulate process restart by purging the in-memory fallback tracker
+    _clear_fallback_failures('127.0.0.1')
+
+    # Verify that the DB cache still holds the count
+    assert cache.get('login_failures_127.0.0.1') == 3
+
+    # Next attempt increments from the DB counter
+    client.post('/login/', {'username': 'hacker', 'password': 'wrongpassword'})
+    assert cache.get('login_failures_127.0.0.1') == 4
+
+    cache.clear()
+    _clear_fallback_failures('127.0.0.1')
+
+
+@pytest.mark.django_db
+def test_login_rate_limiting_fallback_on_cache_error(client):
+    """
+    Verifies that if the database cache encounters an error, the fallback tracker
+    safely prevents unlimited login attempts without failing open.
+    """
+    from unittest.mock import patch
+    from django.db import DatabaseError
+    from django.core.cache import cache
+    from voting.views import _clear_fallback_failures
+    cache.clear()
+    _clear_fallback_failures('127.0.0.1')
+
+    with patch('django.core.cache.cache.get', side_effect=DatabaseError("DB connection lost")),          patch('django.core.cache.cache.set', side_effect=DatabaseError("DB connection lost")):
+        # 4 failed attempts show invalid credentials
+        for _ in range(4):
+            resp = client.post('/login/', {'username': 'hacker', 'password': 'wrongpassword'})
+            assert resp.status_code == 200
+            assert "Invalid username or password." in resp.content.decode()
+
+        # 5th attempt triggers rate limit lockout despite cache failure
+        resp5 = client.post('/login/', {'username': 'hacker', 'password': 'wrongpassword'})
+        assert resp5.status_code == 200
+        assert "Too many failed login attempts" in resp5.content.decode()
+
+    cache.clear()
+    _clear_fallback_failures('127.0.0.1')

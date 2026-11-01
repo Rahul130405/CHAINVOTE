@@ -19,6 +19,7 @@ import time
 import pytest
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
+from selenium.webdriver.support.ui import WebDriverWait
 
 from tests.pages.login_page import LoginPage
 from tests.pages.register_page import RegisterPage
@@ -62,16 +63,13 @@ def test_phase2_startup_and_static_health(browser, live_server, active_election)
     assert login_page.is_visible(LoginPage.USERNAME_INPUT)
     assert login_page.is_visible(LoginPage.PASSWORD_INPUT)
 
-    # 3. Register page
-    register_page = RegisterPage(browser, live_server.url)
-    register_page.navigate()
-    assert register_page.is_visible(RegisterPage.USERNAME_INPUT)
-    assert register_page.is_visible(RegisterPage.PASSWORD_INPUT)
-    assert register_page.is_visible(RegisterPage.PASSWORD2_INPUT)
+    # 3. Register route is disabled (404)
+    browser.get(f"{live_server.url}/register/")
+    assert "404" in browser.title or "Not Found" in browser.page_source or "disabled" in browser.page_source.lower()
 
 
 @pytest.mark.django_db(transaction=True)
-def test_phase2_authentication_and_accessibility(browser, live_server, test_user, unique_username):
+def test_phase2_authentication_and_accessibility(browser, live_server, staff_user, unique_username):
     """
     Section 2.B: Test login, logout, password show/hide, bilingual switch,
     language persistence, and dark/light mode toggle.
@@ -112,33 +110,22 @@ def test_phase2_authentication_and_accessibility(browser, live_server, test_user
     assert login_page.has_error_alert()
     assert "Invalid username or password" in login_page.get_error_message()
 
-    # 4. Test Valid Login and Session Establishment
-    login_page.login(test_user.username, test_user.raw_password)
+    # 4. Test Valid Login and Session Establishment for authorized admin (yash)
+    login_page.login(staff_user.username, staff_user.raw_password)
+    from selenium.webdriver.support.ui import WebDriverWait
+    WebDriverWait(browser, 10).until(lambda d: "/manage" in d.current_url)
+    browser.get(f"{live_server.url}/")
     assert login_page.wait_for_user_logged_in()
-    assert test_user.username in login_page.get_logged_in_username()
+    assert staff_user.username in login_page.get_logged_in_username()
 
     # 5. Test Logout
     login_page.click_sign_out()
     assert "/login/" in browser.current_url
     assert not login_page.is_user_logged_in()
 
-    # 6. Test Registration Show/Hide Password for both fields
-    register_page = RegisterPage(browser, live_server.url)
-    register_page.navigate()
-    assert register_page.get_password_input_type() == "password"
-    assert register_page.get_password2_input_type() == "password"
-
-    register_page.toggle_password_visibility()
-    assert register_page.get_password_input_type() == "text"
-    register_page.toggle_password2_visibility()
-    assert register_page.get_password2_input_type() == "text"
-
-    register_page.toggle_password_visibility()
-    register_page.toggle_password2_visibility()
-    assert register_page.get_password_input_type() == "password"
-    assert register_page.get_password2_input_type() == "password"
-
-    save_screenshot(browser, "03_register_page.png")
+    # 6. Verify Registration is disabled
+    browser.get(f"{live_server.url}/register/")
+    assert "404" in browser.title or "Not Found" in browser.page_source or "disabled" in browser.page_source.lower()
 
     # 7. Test Dark Mode Removal (No theme toggle, dark class absent, rendered in light mode)
     base_page = BasePage(browser, live_server.url)
@@ -147,7 +134,7 @@ def test_phase2_authentication_and_accessibility(browser, live_server, test_user
 
 
 @pytest.mark.django_db(transaction=True)
-def test_phase2_home_dashboard_and_responsive(browser, live_server, test_user, active_election, ended_election):
+def test_phase2_home_dashboard_and_responsive(browser, live_server, staff_user, active_election, ended_election):
     """
     Section 2.C: Test anonymous and authenticated navigation, active/ended election badges,
     4-step instructions, and responsive viewport sizes.
@@ -206,15 +193,15 @@ def test_phase2_home_dashboard_and_responsive(browser, live_server, test_user, a
     base_page.toggle_language()
     time.sleep(0.3)
 
-    # 3. Authenticated home view
+    # 3. Authenticated home view for authorized admin (yash)
     login_page = LoginPage(browser, live_server.url)
     login_page.navigate()
-    login_page.login(test_user.username, test_user.raw_password)
-    login_page.wait_for_user_logged_in()
+    login_page.login(staff_user.username, staff_user.raw_password)
+    WebDriverWait(browser, 10).until(lambda d: "/manage" in d.current_url)
 
     browser.get(live_server.url + "/")
-    assert base_page.is_user_logged_in()
-    assert test_user.username in base_page.get_logged_in_username()
+    assert login_page.wait_for_user_logged_in()
+    assert staff_user.username in login_page.get_logged_in_username()
 
 
 @pytest.mark.django_db(transaction=True)
@@ -230,12 +217,7 @@ def test_phase2_voting_booth_complete_flow(browser, live_server, test_user, acti
     - "Confirm & Submit Vote" submits and prevents double clicks
     - Receipt Modal verification and print button
     """
-    # 1. Login voter
-    login_page = LoginPage(browser, live_server.url)
-    login_page.navigate()
-    login_page.login(test_user.username, test_user.raw_password)
-    login_page.wait_for_user_logged_in()
-
+    # 1. Access voting booth account-free (Voter ID based)
     booth_page = VotingBoothPage(browser, live_server.url)
     booth_page.navigate(active_election.id)
 

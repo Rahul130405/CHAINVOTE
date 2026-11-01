@@ -12,7 +12,7 @@ class LoginPage(BasePage):
     PATH = "/login/"
 
     # Locators
-    PAGE_HEADING = (By.XPATH, "//h1[contains(text(), 'Welcome Back') or contains(text(), 'स्वागत')]")
+    PAGE_HEADING = (By.XPATH, "//h1[contains(text(), 'Administrator') or contains(text(), 'Welcome Back') or contains(text(), 'Sign In') or contains(text(), 'साइन इन') or contains(text(), 'स्वागत')]")
     USERNAME_INPUT = (By.ID, "username")
     PASSWORD_INPUT = (By.ID, "password")
     SUBMIT_BTN = (By.CSS_SELECTOR, "form button[type='submit']")

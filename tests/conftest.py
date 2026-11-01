@@ -53,12 +53,33 @@ def browser():
 @pytest.fixture(autouse=True)
 def clear_cache():
     """
-    Flushes the in-memory cache ('chainvote-cache') before and after each test
+    Flushes the cache ('chainvote_cache_table') before and after each test
     to eliminate cross-test cache contamination of landing page metrics.
     """
-    cache.clear()
+    try:
+        from voting.views import _clear_fallback_failures
+        _clear_fallback_failures('127.0.0.1')
+    except Exception:
+        pass
+    try:
+        cache.clear()
+    except Exception:
+        from django.core.management import call_command
+        try:
+            call_command('createcachetable')
+            cache.clear()
+        except Exception:
+            pass
     yield
-    cache.clear()
+    try:
+        from voting.views import _clear_fallback_failures
+        _clear_fallback_failures('127.0.0.1')
+    except Exception:
+        pass
+    try:
+        cache.clear()
+    except Exception:
+        pass
 
 
 @pytest.fixture
@@ -80,15 +101,45 @@ def test_user(db):
 @pytest.fixture
 def staff_user(db):
     """
-    Creates an isolated staff/admin account in the Django test database.
-    Has is_staff=True to access the SOC threat dashboard.
+    Creates the authorized single-admin (yash) account in the test database.
     """
     raw_pass = "StaffOfficer@123"
     user = User.objects.create_user(
-        username="staff_officer",
+        username="yash",
         password=raw_pass,
-        email="staff_officer@chainvote.test",
+        email="yash@chainvote.test",
         is_staff=True
+    )
+    user.raw_password = raw_pass
+    return user
+
+
+@pytest.fixture
+def other_staff_user(db):
+    """
+    Creates a non-yash staff account to verify it is strictly denied admin access.
+    """
+    raw_pass = "OtherStaffPass@123"
+    user = User.objects.create_user(
+        username="other_staff",
+        password=raw_pass,
+        email="other_staff@chainvote.test",
+        is_staff=True
+    )
+    user.raw_password = raw_pass
+    return user
+
+
+@pytest.fixture
+def other_superuser(db):
+    """
+    Creates a non-yash superuser account to verify it is strictly denied admin access.
+    """
+    raw_pass = "OtherSuperPass@123"
+    user = User.objects.create_superuser(
+        username="other_super",
+        password=raw_pass,
+        email="other_super@chainvote.test"
     )
     user.raw_password = raw_pass
     return user

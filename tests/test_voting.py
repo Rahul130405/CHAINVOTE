@@ -10,11 +10,8 @@ from tests.pages.voting_booth_page import VotingBoothPage
 
 
 def _login_as_voter(browser, live_server, test_user):
-    """Helper to authenticate a voter before entering protected booth."""
-    login_page = LoginPage(browser, live_server.url)
-    login_page.navigate()
-    login_page.login(test_user.username, test_user.raw_password)
-    login_page.wait_for_user_logged_in()
+    """Account-free voting: Voters enter the booth directly without an account."""
+    pass
 
 
 @pytest.mark.django_db(transaction=True)

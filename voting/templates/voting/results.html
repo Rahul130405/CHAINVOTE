@@ -104,9 +104,7 @@
             </a>
             
             <div class="flex items-center space-x-6">
-                <a href="{% url 'blockchain_explorer' election.id %}" class="hidden md:flex text-xs font-semibold tracking-wide text-blue-600 hover:text-blue-700 transition items-center">
-                    <span class="w-1.5 h-1.5 bg-blue-500 rounded-full mr-2 animate-pulse"></span> Audit Ledger
-                </a>
+
             </div>
         </div>
     </nav>
@@ -171,9 +169,10 @@
                     To guarantee absolute integrity, results are encrypted on the blockchain and cannot be decrypted or tallied until the election officially concludes.
                 </p>
                 <div class="mt-8">
-                    <a href="{% url 'blockchain_explorer' election.id %}" class="inline-flex items-center text-sm font-semibold bg-black text-white px-6 py-3 rounded-full hover:scale-105 transition transform shadow-md">
-                        Audit Live Ledger Instead
-                    </a>
+                    <span class="inline-flex items-center text-xs font-semibold bg-gray-100 text-gray-700 px-5 py-2.5 rounded-full border border-gray-200">
+                        <span class="w-2 h-2 rounded-full bg-emerald-500 mr-2 animate-pulse"></span>
+                        Immutable Ledger Sealed
+                    </span>
                 </div>
             </div>
         </div>

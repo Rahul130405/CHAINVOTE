@@ -21,13 +21,12 @@ from tests.pages.base_page import BasePage
 # ─────────────────────────────────────────────────────────────
 
 @pytest.mark.django_db
-def test_templates_do_not_contain_theme_toggle_or_dark_config(client, test_user, active_election):
+def test_templates_do_not_contain_theme_toggle_or_dark_config(client, staff_user, active_election):
     """Verifies server responses for all pages do not contain theme-toggle or darkMode config."""
     # Unauthenticated pages
     anon_urls = [
         reverse("home"),
         reverse("login"),
-        reverse("register"),
         reverse("results", kwargs={"election_id": active_election.id}),
     ]
     for url in anon_urls:
@@ -38,8 +37,8 @@ def test_templates_do_not_contain_theme_toggle_or_dark_config(client, test_user,
         assert "darkMode: 'class'" not in content, f"darkMode: 'class' found in {url}"
         assert '<html lang="en" class="dark">' not in content, f"dark html class found in {url}"
 
-    # Authenticated pages (voting booth, blockchain explorer)
-    client.force_login(test_user)
+    # Authenticated / Admin pages (voting booth, blockchain explorer)
+    client.force_login(staff_user)
     auth_urls = [
         reverse("election_detail", kwargs={"election_id": active_election.id}),
         reverse("blockchain_explorer", kwargs={"election_id": active_election.id}),
@@ -54,9 +53,10 @@ def test_templates_do_not_contain_theme_toggle_or_dark_config(client, test_user,
 
 
 @pytest.mark.django_db
-def test_threat_dashboard_does_not_contain_theme_toggle(admin_client):
+def test_threat_dashboard_does_not_contain_theme_toggle(client, staff_user):
     """Verifies threat dashboard (SOC) does not contain theme toggle or darkMode config."""
-    response = admin_client.get(reverse("threat_dashboard"))
+    client.force_login(staff_user)
+    response = client.get(reverse("threat_dashboard"))
     assert response.status_code == 200
     content = response.content.decode("utf-8")
     assert 'id="theme-toggle"' not in content
@@ -74,7 +74,6 @@ def test_browser_pages_render_without_dark_mode_and_no_toggle(browser, live_serv
     test_urls = [
         ("/", "Home"),
         ("/login/", "Login"),
-        ("/register/", "Register"),
         (f"/election/{active_election.id}/", "Booth"),
         (f"/results/{active_election.id}/", "Results"),
         (f"/blockchain/{active_election.id}/", "Ledger"),

@@ -26,8 +26,19 @@ import re
 from .utils.encryption import encrypt_vote, decrypt_vote
 from .utils.blockchain import verify_election_blockchain
 from .utils.candidate_automation import execute_candidate_automation, ensure_initial_election_data
-from .decorators import admin_required
-from .forms import ElectionForm, CandidateForm, candidate_has_recorded_votes
+from .decorators import (
+    admin_required,
+    is_authorized_admin,
+    add_no_cache_headers,
+    get_authorized_admin_username,
+)
+from .forms import (
+    ElectionForm,
+    CandidateForm,
+    candidate_has_recorded_votes,
+    election_has_recorded_votes_or_ledger,
+    get_election_deletion_blocking_reason,
+)
 
 logger = logging.getLogger('chainvote.views')
 
@@ -96,7 +107,6 @@ def home(request):
 
     return render(request, 'voting/home.html', context)
 
-@login_required
 def election_detail(request, election_id):
     """Single election page with secure voting form (Prefetches candidates)."""
     election = get_object_or_404(
@@ -129,7 +139,6 @@ def hash_identity(identity):
     return hashlib.sha256(identity.encode()).hexdigest()
 
 
-@login_required
 def cast_vote(request, election_id):
     """Handle vote form submission and log threats."""
     if request.method != "POST":
@@ -254,7 +263,7 @@ def results_view(request, election_id):
     })
 
 
-@login_required
+@admin_required
 def blockchain_explorer(request, election_id):
     """Hackathon UI: Visualize the Live Blockchain."""
     election = get_object_or_404(Election, id=election_id)
@@ -271,43 +280,157 @@ def blockchain_explorer(request, election_id):
 # AUTHENTICATION VIEWS
 # ─────────────────────────────────────────────
 
+LOGIN_ATTEMPT_LIMIT = 5
+LOGIN_LOCKOUT_SECONDS = 300  # 5 minutes
+
+# In-memory fail-safe fallback tracker in case the shared cache/database is temporarily unavailable
+_fallback_login_failures = {}
+
+
+def _get_fallback_failures(ip, now_ts):
+    record = _fallback_login_failures.get(ip)
+    if not record:
+        return 0
+    first_attempt_time, count = record
+    if now_ts - first_attempt_time > LOGIN_LOCKOUT_SECONDS:
+        _fallback_login_failures.pop(ip, None)
+        return 0
+    return count
+
+
+def _record_fallback_failure(ip, now_ts):
+    record = _fallback_login_failures.get(ip)
+    if not record or (now_ts - record[0] > LOGIN_LOCKOUT_SECONDS):
+        _fallback_login_failures[ip] = (now_ts, 1)
+        return 1
+    new_count = record[1] + 1
+    _fallback_login_failures[ip] = (record[0], new_count)
+    return new_count
+
+
+def _clear_fallback_failures(ip):
+    _fallback_login_failures.pop(ip, None)
+
+
+def get_client_ip(request):
+    ip = request.META.get('HTTP_X_FORWARDED_FOR', request.META.get('REMOTE_ADDR', ''))
+    if ',' in ip:
+        ip = ip.split(',')[0].strip()
+    return ip or '127.0.0.1'
+
+
+def is_login_rate_limited(ip):
+    key = f"login_failures_{ip}"
+    try:
+        failures = cache.get(key, 0) or 0
+        return failures >= LOGIN_ATTEMPT_LIMIT
+    except Exception:
+        # Cache backend/database error: fail safe using fallback tracker
+        import time
+        now_ts = time.time()
+        return _get_fallback_failures(ip, now_ts) >= LOGIN_ATTEMPT_LIMIT
+
+
+def record_login_failure(ip, attempted_username):
+    key = f"login_failures_{ip}"
+    try:
+        failures = (cache.get(key, 0) or 0) + 1
+        cache.set(key, failures, timeout=LOGIN_LOCKOUT_SECONDS)
+    except Exception:
+        # Cache backend/database error: fallback tracker guarantees attempts are counted
+        import time
+        now_ts = time.time()
+        failures = _record_fallback_failure(ip, now_ts)
+
+    level = 'CRITICAL' if failures >= LOGIN_ATTEMPT_LIMIT else 'WARNING'
+    action = 'Admin Login Rate Limit Exceeded' if failures >= LOGIN_ATTEMPT_LIMIT else 'Admin Login Failed'
+    safe_username = attempted_username[:30] if attempted_username else 'unknown'
+    try:
+        SecurityLog.objects.create(
+            level=level,
+            action=action,
+            ip_address=ip,
+            details=f"Failed admin login attempt #{failures} for username '{safe_username}'."
+        )
+    except Exception:
+        pass
+    return failures
+
+
+def clear_login_failures(ip):
+    _clear_fallback_failures(ip)
+    try:
+        cache.delete(f"login_failures_{ip}")
+    except Exception:
+        pass
+
+
 def login_view(request):
+    """
+    Hardened admin-only portal login.
+    Strictly authenticates only the designated authorized administrator (yash).
+    Enforces login rate limiting, failure logging, and prevention of username enumeration.
+    """
     if request.user.is_authenticated:
+        if is_authorized_admin(request.user):
+            return redirect('manage_dashboard')
         return redirect('home')
+
+    ip = get_client_ip(request)
+
     if request.method == 'POST':
-        username = request.POST.get('username')
-        password = request.POST.get('password')
+        # 1. Rate limiting check
+        if is_login_rate_limited(ip):
+            messages.error(request, "Too many failed login attempts. Please try again later.")
+            response = render(request, 'voting/login.html')
+            return add_no_cache_headers(response)
+
+        raw_username = request.POST.get('username', '')
+        password = request.POST.get('password', '')
+        username = raw_username.strip()
+
+        # 2. Authenticate credentials
         user = authenticate(request, username=username, password=password)
-        if user:
+
+        if user and is_authorized_admin(user):
+            clear_login_failures(ip)
             login(request, user)
-            return redirect(request.GET.get('next', 'home'))
+            next_url = request.GET.get('next')
+            if next_url and next_url.startswith('/') and not next_url.startswith('//'):
+                response = redirect(next_url)
+            else:
+                response = redirect('manage_dashboard')
+            return add_no_cache_headers(response)
         else:
-            messages.error(request, "Invalid username or password.")
-    return render(request, 'voting/login.html')
+            # If credentials matched another non-yash user, immediately terminate session
+            if user:
+                logout(request)
+
+            failures = record_login_failure(ip, username)
+            if failures >= LOGIN_ATTEMPT_LIMIT:
+                messages.error(request, "Too many failed login attempts. Please try again later.")
+            else:
+                messages.error(request, "Invalid username or password.")
+
+            response = render(request, 'voting/login.html')
+            return add_no_cache_headers(response)
+
+    response = render(request, 'voting/login.html')
+    return add_no_cache_headers(response)
 
 
 def register_view(request):
-    if request.user.is_authenticated:
-        return redirect('home')
-    if request.method == 'POST':
-        username = request.POST.get('username')
-        password = request.POST.get('password')
-        password2 = request.POST.get('password2')
-        if password != password2:
-            messages.error(request, "Passwords do not match.")
-        elif User.objects.filter(username=username).exists():
-            messages.error(request, "Username already taken.")
-        else:
-            user = User.objects.create_user(username=username, password=password)
-            login(request, user)
-            messages.success(request, f"Welcome to ChainVote, {username}!")
-            return redirect('home')
-    return render(request, 'voting/register.html')
+    """
+    User registration is permanently disabled in the Voter ID architecture.
+    Returns 404 for all requests.
+    """
+    raise Http404("User registration is permanently disabled.")
 
 
 def logout_view(request):
     logout(request)
-    return redirect('login')
+    response = redirect('login')
+    return add_no_cache_headers(response)
 
 
 # ─────────────────────────────────────────────
@@ -517,6 +640,8 @@ def manage_dashboard(request):
     completed_elections = 0
     total_candidates = 0
 
+    all_chains_valid = True
+
     for e in elections:
         e.vote_count = Vote.objects.filter(election=e).count()
         total_candidates += e.candidates.count()
@@ -525,9 +650,25 @@ def manage_dashboard(request):
         elif e.status == 'ended':
             completed_elections += 1
 
+        is_valid, msg = verify_election_blockchain(e)
+        e.chain_valid = is_valid
+        e.chain_message = msg
+        if not is_valid:
+            all_chains_valid = False
+        e.blocking_reason = get_election_deletion_blocking_reason(e)
+        e.can_be_deleted = (e.blocking_reason is None)
+
     # SOC Threat Operations data
     soc_logs = list(SecurityLog.objects.only('id', 'level', 'action', 'ip_address', 'details', 'timestamp').all()[:50])
     critical_count = SecurityLog.objects.filter(level='CRITICAL').count()
+
+    # Blockchain Ledger Operations data
+    total_blocks = Vote.objects.count()
+    recent_blocks = list(
+        Vote.objects.select_related('election')
+        .only('id', 'election__title', 'voted_at', 'previous_hash', 'encrypted_vote', 'block_hash')
+        .order_by('-id')[:25]
+    )
 
     return render(request, 'voting/manage/dashboard.html', {
         'elections': elections,
@@ -538,6 +679,9 @@ def manage_dashboard(request):
         'soc_logs': soc_logs,
         'logs': soc_logs,
         'critical_count': critical_count,
+        'total_blocks': total_blocks,
+        'recent_blocks': recent_blocks,
+        'all_chains_valid': all_chains_valid,
     })
 
 
@@ -580,6 +724,52 @@ def manage_election_edit(request, election_id):
         'election': election,
         'title': f"Edit Election: {election.title}",
         'action': 'edit',
+    })
+
+
+@admin_required
+def manage_election_delete(request, election_id):
+    """
+    Admin view to safely delete an election only if:
+    1. Zero recorded votes and no associated blockchain ledger records exist.
+    2. The election is not currently active.
+    3. Deletion does not violate any integrity constraint.
+    Enforces POST-only mutation, atomic row locking, and fail-closed safety.
+    """
+    election = get_object_or_404(Election, id=election_id)
+
+    # Pre-flight check
+    blocking_reason = get_election_deletion_blocking_reason(election)
+    if blocking_reason:
+        messages.error(request, f"Security Alert: Cannot delete election '{election.title}'. {blocking_reason}")
+        return redirect('manage_dashboard')
+
+    if request.method == 'POST':
+        with transaction.atomic():
+            elec_locked = (
+                Election.objects
+                .select_for_update()
+                .filter(id=election_id)
+                .first()
+            )
+            if not elec_locked:
+                messages.error(request, "Election no longer exists.")
+                return redirect('manage_dashboard')
+
+            reason = get_election_deletion_blocking_reason(elec_locked)
+            if reason:
+                messages.error(request, f"Security Alert: Cannot delete election '{elec_locked.title}'. {reason}")
+                return redirect('manage_dashboard')
+
+            title = elec_locked.title
+            elec_locked.delete()
+            cache.delete('home_landing_context')
+            messages.success(request, f"Election '{title}' was safely deleted.")
+            return redirect('manage_dashboard')
+
+    # GET request: Render confirmation template. Never perform deletion on GET.
+    return render(request, 'voting/manage/election_confirm_delete.html', {
+        'election': election,
     })
 
 
@@ -711,4 +901,4 @@ def manage_candidate_delete(request, candidate_id):
         'candidate': candidate,
     })
 
-
+

@@ -92,8 +92,8 @@ WHITENOISE_USE_FINDERS = True
 
 CACHES = {
     'default': {
-        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
-        'LOCATION': 'chainvote-cache',
+        'BACKEND': 'django.core.cache.backends.db.DatabaseCache',
+        'LOCATION': 'chainvote_cache_table',
         'TIMEOUT': 60,
     }
 }
@@ -112,3 +112,16 @@ REST_FRAMEWORK = {
 LOGIN_URL = '/login/'
 LOGIN_REDIRECT_URL = '/'
 LOGOUT_REDIRECT_URL = '/login/'
+
+# ── SINGLE-ADMIN AUTHORIZATION CONFIGURATION ────────────────
+AUTHORIZED_ADMIN_USERNAME = os.environ.get('AUTHORIZED_ADMIN_USERNAME', 'yash')
+
+# ── SESSION & COOKIE HARDENING ──────────────────────────────
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_AGE = 7200  # 2 hours
+SESSION_EXPIRE_AT_BROWSER_CLOSE = True
+
+# Production HTTPS cookies (only enabled in production/Vercel or when SECURE_COOKIES is set)
+SECURE_COOKIES = os.environ.get('SECURE_COOKIES', 'True' if IS_VERCEL and not DEBUG else 'False').lower() in ('true', '1')
+SESSION_COOKIE_SECURE = SECURE_COOKIES
+CSRF_COOKIE_SECURE = SECURE_COOKIES

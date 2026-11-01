@@ -1,7 +1,7 @@
 """
 Usage: python manage.py seed_data
 
-Creates sample elections, candidates, and a test user so you can
+Creates sample elections and candidates so you can
 explore ChainVote immediately after setup.
 """
 from django.core.management.base import BaseCommand
@@ -17,12 +17,7 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         now = timezone.now()
 
-        # Create superuser if not exists
-        if not User.objects.filter(username='admin').exists():
-            User.objects.create_superuser('admin', 'admin@chainvote.com', 'admin123')
-            self.stdout.write(self.style.SUCCESS('✅ Superuser created: admin / admin123'))
-
-        # Create test voter
+        # Create test voter if not exists
         if not User.objects.filter(username='voter1').exists():
             User.objects.create_user('voter1', password='voter123')
             self.stdout.write(self.style.SUCCESS('✅ Test user created: voter1 / voter123'))
@@ -96,6 +91,5 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS('✅ Sample data seeded successfully!'))
         self.stdout.write('')
         self.stdout.write('  🌐 App:        http://127.0.0.1:8000/')
-        self.stdout.write('  🔧 Admin:      http://127.0.0.1:8000/admin/')
-        self.stdout.write('  👤 Admin login: admin / admin123')
-        self.stdout.write('  👤 Test voter:  voter1 / voter123')
+        self.stdout.write('  🔧 Manage:     http://127.0.0.1:8000/manage/')
+        self.stdout.write('  👤 Test voter: voter1 / voter123')

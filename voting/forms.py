@@ -38,6 +38,56 @@ def candidate_has_recorded_votes(candidate):
     return False
 
 
+def election_has_recorded_votes_or_ledger(election):
+    """
+    Safely inspect the election to determine if any votes or blockchain ledger records exist.
+    Returns True if at least one Vote record exists, False otherwise.
+    Fails closed: Any database or query exception returns True to protect the ledger.
+    """
+    if not election or not getattr(election, 'id', None):
+        return False
+    try:
+        return Vote.objects.filter(election_id=election.id).exists()
+    except Exception as exc:
+        logger.warning(
+            "Exception encountered while checking recorded votes for election ID %s: %s. "
+            "Failing closed to block deletion.",
+            getattr(election, 'id', None),
+            exc
+        )
+        return True
+
+
+def get_election_deletion_blocking_reason(election):
+    """
+    Evaluates whether an election is eligible for safe deletion.
+    An election may be deleted only if:
+    - It has zero recorded votes.
+    - It has no associated blockchain ledger entries.
+    - It is not currently active.
+    - Deletion does not violate system protocol integrity.
+
+    Returns None if eligible for deletion; returns a descriptive reason string if blocked.
+    Fails closed: Any uncertainty or ledger linkage blocks deletion.
+    """
+    if not election or not getattr(election, 'id', None):
+        return "Invalid election instance."
+
+    # 1. System protocol election cannot be deleted
+    if getattr(election, 'title', '') == 'ChainVote Network Audit & Protocol Ledger':
+        return "Protected system protocol election cannot be deleted."
+
+    # 2. Cannot delete if recorded votes or blockchain ledger entries exist (Priority: protect immutable ledger)
+    if election_has_recorded_votes_or_ledger(election):
+        return "Deletion locked: Protected to preserve cryptographic ledger integrity. Recorded votes exist on the blockchain."
+
+    # 3. Cannot delete an active election
+    if election.status == Election.STATUS_ACTIVE:
+        return "Deletion locked: Active elections currently receiving ballots cannot be deleted."
+
+    return None
+
+
 class ElectionForm(forms.ModelForm):
     start_time = forms.DateTimeField(
         widget=forms.DateTimeInput(

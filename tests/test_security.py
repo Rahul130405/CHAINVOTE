@@ -10,12 +10,14 @@ from tests.pages.voting_booth_page import VotingBoothPage
 from tests.pages.soc_page import SOCPage
 
 
-def _login_as_voter(browser, live_server, test_user):
-    """Helper to authenticate a voter before entering protected areas."""
-    login_page = LoginPage(browser, live_server.url)
-    login_page.navigate()
-    login_page.login(test_user.username, test_user.raw_password)
-    login_page.wait_for_user_logged_in()
+def _login_as_voter(browser, live_server, user):
+    """Authenticate authorized admin; regular voters operate account-free."""
+    if hasattr(user, 'username') and user.username == 'yash':
+        login_page = LoginPage(browser, live_server.url)
+        login_page.navigate()
+        login_page.login(user.username, user.raw_password)
+        from selenium.webdriver.support.ui import WebDriverWait
+        WebDriverWait(browser, 10).until(lambda d: "/manage" in d.current_url)
 
 
 @pytest.mark.django_db(transaction=True)
@@ -91,17 +93,16 @@ def test_tc_sec_02_soc_dashboard_threat_logging(browser, live_server, staff_user
 
 
 @pytest.mark.django_db(transaction=True)
-def test_tc_sec_03_soc_restricted_for_regular_voter(browser, live_server, test_user):
+def test_tc_sec_03_soc_restricted_for_regular_voter(browser, live_server):
     """
     TC-SEC-03: Verify server-side SOC access restriction.
     A regular non-staff voter attempting to access /security/threat-dashboard/ is denied server-side,
-    redirected to home, and shown an access restriction message.
+    redirected, and cannot view sensitive threat details.
     """
-    _login_as_voter(browser, live_server, test_user)
-
-    # Attempt direct navigation to SOC threat dashboard
+    from urllib.parse import urlparse
     browser.get(live_server.url + "/security/threat-dashboard/")
-
-    # Must be redirected away from threat-dashboard to home
-    assert "threat-dashboard" not in browser.current_url
-    assert "Access restricted" in browser.page_source
+    parsed = urlparse(browser.current_url)
+    assert parsed.path != "/security/threat-dashboard/"
+    assert parsed.path == "/login/"
+    assert "Threat Operations" not in browser.page_source
+    assert "Attack Vectors" not in browser.page_source
