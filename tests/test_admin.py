@@ -315,7 +315,7 @@ def test_manage_election_create_and_edit(client, staff_user):
     """Staff user can create a new election and edit an existing one."""
     client.force_login(staff_user)
     now = timezone.now()
-    
+
     # 1. Create election
     create_data = {
         'title': 'Faculty Senate Election 2026',
@@ -1679,3 +1679,271 @@ def test_login_rate_limiting_fallback_on_cache_error(client):
 
     cache.clear()
     _clear_fallback_failures('127.0.0.1')
+
+
+# ─────────────────────────────────────────────────────────────
+# 19. REGRESSION TESTS: ELECTION DELETION HARDENING & DIAGNOSTICS
+# ─────────────────────────────────────────────────────────────
+
+@pytest.mark.django_db
+def test_vote_election_on_delete_protect_raises_protected_error(active_election):
+    """
+    Verifies Vote.election is on_delete=models.PROTECT:
+    Calling election.delete() directly raises models.ProtectedError and prevents
+    cascade-deletion of cryptographic votes.
+    """
+    candidate = active_election.candidates.first()
+    vote = Vote.objects.create(
+        election=active_election,
+        encrypted_vote=str(candidate.id),
+        voter_hash="voter_protect_hash_1"
+    )
+    with pytest.raises(ProtectedError) as exc_info:
+        active_election.delete()
+
+    assert vote in exc_info.value.protected_objects
+    assert Vote.objects.filter(id=vote.id).exists() is True
+    assert Election.objects.filter(id=active_election.id).exists() is True
+
+
+@pytest.mark.django_db
+def test_django_admin_has_delete_permission_blocks_protected_elections(rf, staff_user, active_election, ended_election):
+    """
+    Verifies ElectionAdmin.has_delete_permission returns False for:
+    - Elections with recorded votes.
+    - Active elections.
+    - System protocol ledger election.
+    And returns True for eligible upcoming elections without votes.
+    """
+    from django.contrib import admin
+    election_admin = admin.site._registry[Election]
+
+    req = rf.get('/admin/voting/election/')
+    req.user = staff_user
+
+    # 1. Active election -> False
+    assert election_admin.has_delete_permission(req, active_election) is False
+
+    # 2. Concluded election with votes -> False
+    assert election_admin.has_delete_permission(req, ended_election) is False
+
+    # 3. Protocol election -> False
+    protocol_elec = Election.objects.create(
+        title='ChainVote Network Audit & Protocol Ledger',
+        start_time=timezone.now() - timedelta(days=10),
+        end_time=timezone.now() + timedelta(days=10),
+    )
+    assert election_admin.has_delete_permission(req, protocol_elec) is False
+
+    # 4. Eligible upcoming election without votes -> True
+    upcoming = Election.objects.create(
+        title='Eligible Admin Delete Check',
+        start_time=timezone.now() + timedelta(days=5),
+        end_time=timezone.now() + timedelta(days=10),
+    )
+    assert election_admin.has_delete_permission(req, upcoming) is True
+
+
+@pytest.mark.django_db
+def test_django_admin_delete_view_permission_denied_for_voted_election(client, staff_user, ended_election):
+    """
+    Attempting to open the delete confirmation page in Django Admin for an election
+    with votes returns 403 Forbidden (PermissionDenied) instead of 500.
+    """
+    client.force_login(staff_user)
+    resp = client.get(f'/admin/voting/election/{ended_election.id}/delete/')
+    assert resp.status_code == 403
+
+
+@pytest.mark.django_db
+def test_django_admin_delete_view_handles_database_error_gracefully(client, staff_user):
+    """
+    If a DatabaseError occurs inside Django Admin delete_view, it catches the error,
+    redirects to the changelist with a clear message, and does NOT return HTTP 500.
+    """
+    now = timezone.now()
+    election = Election.objects.create(
+        title="Admin DB Error Test Election",
+        start_time=now + timedelta(days=3),
+        end_time=now + timedelta(days=6),
+    )
+    client.force_login(staff_user)
+
+    with patch('django.contrib.admin.options.ModelAdmin.delete_view', side_effect=DatabaseError("relation 'missing_table' does not exist")):
+        resp = client.get(f'/admin/voting/election/{election.id}/delete/')
+
+    # Clean 302 redirect back to the election changelist (never an unhandled 500)
+    assert resp.status_code == 302
+    assert resp.url == reverse('admin:voting_election_changelist')
+    # Follow redirect and verify flash message
+    followed = client.get(resp.url)
+    assert followed.status_code == 200
+    assert "Database error" in followed.content.decode()
+
+
+@pytest.mark.django_db
+def test_django_admin_delete_queryset_skips_elections_with_votes(rf, staff_user, active_election):
+    """
+    Django Admin bulk delete action ('delete_selected'):
+    Safely skips elections with recorded votes or active status, deleting only eligible elections.
+    """
+    from django.contrib import admin
+    election_admin = admin.site._registry[Election]
+
+    # Add a vote to active_election
+    cand = active_election.candidates.first()
+    Vote.objects.create(election=active_election, encrypted_vote=str(cand.id), voter_hash='bulk_vote_hash')
+
+    # Create an eligible upcoming election
+    now = timezone.now()
+    eligible_election = Election.objects.create(
+        title="Bulk Deletable Upcoming",
+        start_time=now + timedelta(days=5),
+        end_time=now + timedelta(days=10),
+    )
+
+    req = rf.post('/admin/voting/election/')
+    req.user = staff_user
+    _add_messages_storage(req)
+
+    queryset = Election.objects.filter(id__in=[active_election.id, eligible_election.id])
+    election_admin.delete_queryset(req, queryset)
+
+    # Active election with votes is preserved
+    assert Election.objects.filter(id=active_election.id).exists() is True
+    # Eligible election is deleted
+    assert Election.objects.filter(id=eligible_election.id).exists() is False
+
+
+@pytest.mark.django_db
+def test_manage_election_delete_diagnostics_formatting(client, staff_user):
+    """
+    Verifies that manage_election_delete extracts and reports detailed diagnostics
+    (exception class, message) when a DatabaseError occurs.
+    """
+    import html
+    now = timezone.now()
+    election = Election.objects.create(
+        title="Diagnostic Format Test Election",
+        start_time=now + timedelta(days=3),
+        end_time=now + timedelta(days=6),
+    )
+    client.force_login(staff_user)
+
+    simulated_err = DatabaseError("relation 'voting_candidateautomationstate' does not exist")
+    with patch.object(Election, 'delete', side_effect=simulated_err):
+        del_resp = client.post(reverse('manage_election_delete', args=[election.id]), follow=True)
+
+    assert del_resp.status_code == 200
+    decoded = html.unescape(del_resp.content.decode())
+    assert "Database error encountered" in decoded
+    assert "DatabaseError" in decoded
+    assert "relation 'voting_candidateautomationstate' does not exist" in decoded
+    # Also verify message storage directly
+    messages = [m.message for m in del_resp.wsgi_request._messages]
+    assert any("relation 'voting_candidateautomationstate' does not exist" in m for m in messages)
+
+
+@pytest.mark.django_db
+def test_manage_candidate_delete_diagnostics_formatting(client, staff_user):
+    """
+    Verifies that manage_candidate_delete extracts and reports detailed diagnostics
+    (exception class, message, SQLSTATE) when a DatabaseError occurs without a raw 500.
+    """
+    import html
+    now = timezone.now()
+    election = Election.objects.create(
+        title="Candidate Diag Test Election",
+        start_time=now + timedelta(days=3),
+        end_time=now + timedelta(days=6),
+    )
+    candidate = Candidate.objects.create(election=election, name="Diag Candidate")
+    client.force_login(staff_user)
+
+    simulated_err = DatabaseError("relation 'voting_candidateautomationstate' does not exist")
+    with patch.object(Candidate, 'delete', side_effect=simulated_err):
+        del_resp = client.post(reverse('manage_candidate_delete', args=[candidate.id]), follow=True)
+
+    assert del_resp.status_code == 200
+    decoded = html.unescape(del_resp.content.decode())
+    assert "Database error encountered" in decoded
+    assert "DatabaseError" in decoded
+    assert "relation 'voting_candidateautomationstate' does not exist" in decoded
+    messages = [m.message for m in del_resp.wsgi_request._messages]
+    assert any("relation 'voting_candidateautomationstate' does not exist" in m for m in messages)
+
+
+@pytest.mark.django_db
+def test_candidate_admin_has_delete_permission(rf, staff_user):
+    """
+    CandidateAdmin.has_delete_permission should:
+    - Return True for upcoming election candidates with zero votes.
+    - Return False for candidates with recorded votes.
+    - Return False for candidates in active or ended elections.
+    """
+    from django.contrib import admin
+    cand_admin = admin.site._registry[Candidate]
+
+    now = timezone.now()
+    e_upcoming = Election.objects.create(title="Upcoming Elec", start_time=now + timedelta(days=2), end_time=now + timedelta(days=5))
+    c_eligible = Candidate.objects.create(election=e_upcoming, name="Eligible Candidate")
+
+    req = rf.get('/admin/')
+    req.user = staff_user
+
+    assert cand_admin.has_delete_permission(req, c_eligible) is True
+
+    # Candidate with votes
+    Vote.objects.create(election=e_upcoming, encrypted_vote=encrypt_vote(str(c_eligible.id)), voter_hash="cand_perm_vote_hash")
+    assert cand_admin.has_delete_permission(req, c_eligible) is False
+
+    # Candidate in active election
+    e_active = Election.objects.create(title="Active Elec", start_time=now - timedelta(days=1), end_time=now + timedelta(days=2))
+    c_active = Candidate.objects.create(election=e_active, name="Active Candidate")
+    assert cand_admin.has_delete_permission(req, c_active) is False
+
+
+@pytest.mark.django_db
+def test_candidate_admin_delete_view_graceful_database_error(client, staff_user):
+    """
+    Django Admin Candidate delete_view gracefully catches DatabaseError, logs it,
+    displays a diagnostic error message, and redirects to the candidate changelist without a 500.
+    """
+    now = timezone.now()
+    election = Election.objects.create(title="Admin Cand DB Err Election", start_time=now + timedelta(days=2), end_time=now + timedelta(days=5))
+    candidate = Candidate.objects.create(election=election, name="DB Err Candidate")
+
+    client.force_login(staff_user)
+
+    simulated_err = DatabaseError("relation 'voting_candidateautomationstate' does not exist")
+    with patch.object(Candidate, 'delete', side_effect=simulated_err):
+        del_resp = client.post(f'/admin/voting/candidate/{candidate.id}/delete/', {'post': 'yes'}, follow=False)
+
+    assert del_resp.status_code == 302
+    assert del_resp.url == reverse('admin:voting_candidate_changelist')
+
+
+@pytest.mark.django_db
+def test_candidate_admin_delete_queryset_bulk_safety(rf, staff_user):
+    """
+    CandidateAdmin.delete_queryset skips candidates with votes or in non-upcoming elections,
+    and cleanly deletes eligible upcoming candidates.
+    """
+    from django.contrib import admin
+    cand_admin = admin.site._registry[Candidate]
+
+    now = timezone.now()
+    e_upcoming = Election.objects.create(title="Upcoming Bulk Elec", start_time=now + timedelta(days=2), end_time=now + timedelta(days=5))
+    c_clean = Candidate.objects.create(election=e_upcoming, name="Clean Candidate")
+    c_voted = Candidate.objects.create(election=e_upcoming, name="Voted Candidate")
+    Vote.objects.create(election=e_upcoming, encrypted_vote=encrypt_vote(str(c_voted.id)), voter_hash="bulk_cand_vote_hash")
+
+    req = rf.post('/admin/voting/candidate/')
+    req.user = staff_user
+    _add_messages_storage(req)
+
+    qs = Candidate.objects.filter(id__in=[c_clean.id, c_voted.id])
+    cand_admin.delete_queryset(req, qs)
+
+    assert Candidate.objects.filter(id=c_clean.id).exists() is False
+    assert Candidate.objects.filter(id=c_voted.id).exists() is True

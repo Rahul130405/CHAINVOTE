@@ -8,7 +8,7 @@
     <link rel="icon" type="image/png" sizes="32x32" href="{% static 'images/favicon.png' %}">
     <link rel="icon" type="image/x-icon" href="{% static 'favicon.ico' %}">
     <link rel="apple-touch-icon" href="{% static 'images/favicon.png' %}">
-    
+
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
@@ -27,15 +27,16 @@
             }
         }
     </script>
-    
+
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="dns-prefetch" href="https://cdn.tailwindcss.com">
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
-    
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+Devanagari:wght@400;500;600;700;800&display=swap">
+    <link rel="stylesheet" href="{% static 'voting/css/i18n.css' %}">
+
     <style>
-        body { 
-            transition: background-color 0.5s ease, color 0.5s ease; 
+        body {
+            transition: background-color 0.5s ease, color 0.5s ease;
             overflow-x: hidden;
             -webkit-font-smoothing: antialiased;
             -moz-osx-font-smoothing: grayscale;
@@ -51,11 +52,11 @@
             position: absolute;
             border-radius: 50%;
             filter: blur(80px);
-            opacity: 0.25; 
+            opacity: 0.25;
             z-index: -1;
             animation: float 20s ease-in-out infinite alternate;
         }
-        
+
         .blob-1 { top: -10%; left: -10%; width: 50vw; height: 50vw; background: #3b82f6; animation-delay: 0s; }
         .blob-2 { top: 40%; right: -10%; width: 60vw; height: 60vw; background: #8b5cf6; animation-delay: -5s; }
         .blob-3 { bottom: -20%; left: 20%; width: 50vw; height: 50vw; background: #10b981; animation-delay: -10s; }
@@ -67,10 +68,10 @@
             100% { transform: translate(0, -10%) scale(1); }
         }
 
-        .reveal-hidden { 
-            opacity: 0; 
-            transform: translateY(20px); 
-            transition: all 0.6s cubic-bezier(0.16, 1, 0.3, 1); 
+        .reveal-hidden {
+            opacity: 0;
+            transform: translateY(20px);
+            transition: all 0.6s cubic-bezier(0.16, 1, 0.3, 1);
         }
         .reveal-visible { opacity: 1; transform: translateY(0); }
     </style>
@@ -95,7 +96,7 @@
                 <img src="{% static 'voting/images/logo.webp' %}" alt="ChainVote Logo" class="w-8 h-8 object-contain" width="32" height="32" loading="eager" fetchpriority="high">
                 <span class="text-lg font-semibold tracking-tight">ChainVote</span>
             </a>
-            
+
             <div class="flex items-center space-x-4">
                 <!-- Bilingual Toggle -->
                 <button id="lang-toggle" onclick="toggleLanguage()" class="flex items-center space-x-1 px-3 py-1 rounded-full text-xs font-semibold bg-gray-100 hover:bg-gray-200 text-gray-700 transition border border-gray-200" aria-label="Switch language between English and Hindi">
@@ -112,7 +113,7 @@
     <main class="flex-grow flex items-center justify-center px-6 pt-32 pb-24 relative z-10">
         <div class="w-full max-w-md reveal-hidden">
             <div class="bg-white/80 glass-panel rounded-[2.5rem] p-8 md:p-10 border border-gray-200/70 shadow-2xl">
-                
+
                 <div class="text-center mb-8">
                     <img src="{% static 'voting/images/logo.webp' %}" alt="ChainVote Logo" class="w-16 h-16 object-contain mx-auto mb-5 drop-shadow-md" width="64" height="64" loading="eager" fetchpriority="high">
                     <h1 class="text-3xl font-bold tracking-tight text-gray-900" data-i18n="register_title">Create Account</h1>
@@ -159,10 +160,10 @@
                                 data-i18n-placeholder="ph_password"
                                 required
                             >
-                            <button 
-                                type="button" 
+                            <button
+                                type="button"
                                 id="togglePasswordBtn"
-                                onclick="togglePasswordVisibility('password', this)" 
+                                onclick="togglePasswordVisibility('password', this)"
                                 class="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-800 p-1.5 focus:outline-none"
                                 aria-label="Show or hide password"
                                 title="Show/Hide Password"
@@ -191,10 +192,10 @@
                                 data-i18n-placeholder="ph_password2"
                                 required
                             >
-                            <button 
-                                type="button" 
+                            <button
+                                type="button"
                                 id="togglePassword2Btn"
-                                onclick="togglePasswordVisibility('password2', this)" 
+                                onclick="togglePasswordVisibility('password2', this)"
                                 class="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-800 p-1.5 focus:outline-none"
                                 aria-label="Show or hide confirmed password"
                                 title="Show/Hide Password"
@@ -209,7 +210,7 @@
                             </button>
                         </div>
                     </div>
-                    
+
                     <button type="submit" class="w-full bg-black text-white py-4 rounded-2xl font-bold text-lg hover:scale-[1.02] active:scale-[0.98] transition transform shadow-xl">
                         <span data-i18n="btn_register">Create Account →</span>
                     </button>
@@ -217,7 +218,7 @@
 
                 <div class="mt-8 text-center">
                     <p class="text-gray-500 text-sm font-medium">
-                        <span data-i18n="already_account_text">Already have an account?</span> 
+                        <span data-i18n="already_account_text">Already have an account?</span>
                         <a href="{% url 'login' %}" class="text-black font-semibold hover:underline decoration-2 underline-offset-4" data-i18n="link_signin">Sign in here</a>
                     </p>
                 </div>
@@ -245,7 +246,7 @@
             const input = document.getElementById(fieldId);
             const eyeIcon = btn.querySelector('.eye-icon');
             const eyeSlashIcon = btn.querySelector('.eye-slash-icon');
-            
+
             if (input.type === 'password') {
                 input.type = 'text';
                 eyeIcon.classList.add('hidden');
@@ -258,77 +259,10 @@
                 btn.setAttribute('aria-label', 'Show password');
             }
         }
-
-        // Bilingual Dictionary & Engine
-        const translations = {
-            en: {
-                nav_login: 'Log In',
-                register_title: 'Create Account',
-                register_subtitle: 'Register to vote in digital elections',
-                label_username: 'Username',
-                ph_username: 'Choose a username',
-                hint_username: 'Letters and numbers only, no spaces',
-                label_password: 'Password',
-                ph_password: 'Create a password',
-                hint_password: 'Minimum 8 characters recommended',
-                label_password2: 'Confirm Password',
-                ph_password2: 'Repeat your password',
-                btn_register: 'Create Account →',
-                already_account_text: 'Already have an account?',
-                link_signin: 'Sign in here',
-                footer_tagline: 'Secure & Decentralized Voting Protocol',
-                lang_btn: 'हिंदी'
-            },
-            hi: {
-                nav_login: 'लॉग इन',
-                register_title: 'खाता बनाएं',
-                register_subtitle: 'डिजिटल चुनाव में भाग लेने के लिए पंजीकरण करें',
-                label_username: 'उपयोगकर्ता नाम (Username)',
-                ph_username: 'अपना यूजरनेम चुनें',
-                hint_username: 'केवल अक्षर और संख्याएं, रिक्त स्थान नहीं',
-                label_password: 'पासवर्ड (Password)',
-                ph_password: 'एक मजबूत पासवर्ड बनाएं',
-                hint_password: 'कम से कम 8 अक्षर अनुशंसित हैं',
-                label_password2: 'पासवर्ड की पुष्टि करें',
-                ph_password2: 'अपना पासवर्ड दोबारा दर्ज करें',
-                btn_register: 'खाता बनाएं →',
-                already_account_text: 'क्या आपका पहले से खाता है?',
-                link_signin: 'यहाँ साइन इन करें',
-                footer_tagline: 'सुरक्षित एवं विकेंद्रीकृत मतदान प्रणाली',
-                lang_btn: 'English'
-            }
-        };
-
-        function setLanguage(lang) {
-            localStorage.setItem('preferred-lang', lang);
-            document.documentElement.lang = lang;
-            const dict = translations[lang] || translations.en;
-            
-            document.querySelectorAll('[data-i18n]').forEach(el => {
-                const key = el.getAttribute('data-i18n');
-                if (dict[key]) el.textContent = dict[key];
-            });
-
-            document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
-                const key = el.getAttribute('data-i18n-placeholder');
-                if (dict[key]) el.setAttribute('placeholder', dict[key]);
-            });
-
-            const langText = document.getElementById('lang-text');
-            if (langText) langText.textContent = dict.lang_btn;
-        }
-
-        function toggleLanguage() {
-            const currentLang = localStorage.getItem('preferred-lang') || 'en';
-            const nextLang = currentLang === 'en' ? 'hi' : 'en';
-            setLanguage(nextLang);
-        }
-
-        // Initialize Page
+    </script>
+    <script src="{% static 'voting/js/i18n.js' %}"></script>
+    <script>
         document.addEventListener("DOMContentLoaded", () => {
-            const savedLang = localStorage.getItem('preferred-lang') || 'en';
-            setLanguage(savedLang);
-            
             setTimeout(() => {
                 const el = document.querySelector('.reveal-hidden');
                 if (el) el.classList.add('reveal-visible');

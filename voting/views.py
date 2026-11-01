@@ -820,13 +820,39 @@ def manage_election_delete(request, election_id):
 
         except ProtectedError as pe:
             logger.warning("ProtectedError encountered while deleting election ID %s: %s", election_id, pe)
-            error_message = f"Cannot delete election '{title}': It is referenced by protected dependent records."
+            error_message = f"Cannot delete election '{title}': It is referenced by protected dependent records (e.g. recorded cryptographic votes)."
         except IntegrityError as ie:
-            logger.error("IntegrityError encountered while deleting election ID %s: %s", election_id, ie)
-            error_message = f"Database constraint violation: Cannot delete election '{title}' due to existing database dependencies."
+            cause = getattr(ie, '__cause__', None)
+            pgcode = getattr(cause, 'pgcode', None) or getattr(ie, 'pgcode', None)
+            diag = getattr(cause, 'diag', None)
+            constraint_name = getattr(diag, 'constraint_name', None) if diag else None
+            logger.error(
+                "IntegrityError encountered while deleting election ID %s (pgcode=%s, constraint=%s): %s",
+                election_id, pgcode, constraint_name, ie
+            )
+            diag_info = f" (Constraint: {constraint_name})" if constraint_name else (f" (SQLSTATE {pgcode})" if pgcode else "")
+            error_message = f"Database constraint violation{diag_info}: Cannot delete election '{title}' due to existing database dependencies."
         except DatabaseError as de:
-            logger.error("DatabaseError encountered while deleting election ID %s: %s", election_id, de)
-            error_message = f"Database error encountered while deleting election '{title}'. Please try again."
+            cause = getattr(de, '__cause__', None)
+            pgcode = getattr(cause, 'pgcode', None) or getattr(de, 'pgcode', None)
+            diag = getattr(cause, 'diag', None)
+            constraint_name = getattr(diag, 'constraint_name', None) if diag else None
+            table_name = getattr(diag, 'table_name', None) if diag else None
+            primary_msg = getattr(diag, 'message_primary', None) or str(de)
+            exc_class = de.__class__.__name__
+            logger.error(
+                "DatabaseError encountered while deleting election ID %s (%s, pgcode=%s, table=%s, constraint=%s): %s",
+                election_id, exc_class, pgcode, table_name, constraint_name, de
+            )
+            diag_details = []
+            if pgcode:
+                diag_details.append(f"SQLSTATE {pgcode}")
+            if constraint_name:
+                diag_details.append(f"Constraint: {constraint_name}")
+            elif table_name:
+                diag_details.append(f"Table: {table_name}")
+            detail_suffix = f" [{', '.join(diag_details)}]" if diag_details else ""
+            error_message = f"Database error encountered while deleting election '{title}' ({exc_class}{detail_suffix}): {primary_msg.strip()}. Deletion was aborted safely."
         except Exception as exc:
             logger.exception("Unexpected error while deleting election ID %s: %s", election_id, exc)
             error_message = f"An unexpected error occurred while deleting election '{title}'. Deletion was aborted."
@@ -940,40 +966,95 @@ def manage_candidate_delete(request, candidate_id):
         return redirect('manage_election_candidates', election_id=election_id)
 
     if request.method == 'POST':
-        with transaction.atomic():
-            cand_locked = (
-                Candidate.objects
-                .select_for_update()
-                .select_related('election')
-                .filter(id=candidate_id)
-                .first()
+        name = candidate.name
+        election_title = candidate.election.title
+        deleted_successfully = False
+        error_message = None
+
+        try:
+            with transaction.atomic():
+                cand_locked = (
+                    Candidate.objects
+                    .select_for_update()
+                    .select_related('election')
+                    .filter(id=candidate_id)
+                    .first()
+                )
+                if not cand_locked:
+                    messages.error(request, "Candidate no longer exists.")
+                    return redirect('manage_election_candidates', election_id=election_id)
+
+                # Strict enforcement under row lock: must be strictly 'upcoming'
+                if cand_locked.election.status != 'upcoming':
+                    messages.error(
+                        request,
+                        f"Security Alert: Cannot delete candidate '{cand_locked.name}'. Candidates can only be deleted before voting opens (while election status is upcoming). Deletion is prohibited while an election is actively ongoing or concluded."
+                    )
+                    return redirect('manage_election_candidates', election_id=election_id)
+
+                # Fail-closed recorded vote check under lock
+                if candidate_has_recorded_votes(cand_locked):
+                    messages.error(
+                        request,
+                        f"Security Alert: Cannot delete candidate '{cand_locked.name}' because votes have already been recorded for this candidate on the blockchain ledger."
+                    )
+                    return redirect('manage_election_candidates', election_id=election_id)
+
+                name = cand_locked.name
+                election_title = cand_locked.election.title
+                cand_locked.delete()
+                deleted_successfully = True
+
+        except ProtectedError as pe:
+            logger.warning("ProtectedError encountered while deleting candidate ID %s: %s", candidate_id, pe)
+            error_message = f"Cannot delete candidate '{name}': It is referenced by protected dependent records."
+        except IntegrityError as ie:
+            cause = getattr(ie, '__cause__', None)
+            pgcode = getattr(cause, 'pgcode', None) or getattr(ie, 'pgcode', None)
+            diag = getattr(cause, 'diag', None)
+            constraint_name = getattr(diag, 'constraint_name', None) if diag else None
+            logger.error(
+                "IntegrityError encountered while deleting candidate ID %s (pgcode=%s, constraint=%s): %s",
+                candidate_id, pgcode, constraint_name, ie
             )
-            if not cand_locked:
-                messages.error(request, "Candidate no longer exists.")
-                return redirect('manage_election_candidates', election_id=election_id)
+            diag_info = f" (Constraint: {constraint_name})" if constraint_name else (f" (SQLSTATE {pgcode})" if pgcode else "")
+            error_message = f"Database constraint violation{diag_info}: Cannot delete candidate '{name}' due to existing database dependencies."
+        except DatabaseError as de:
+            cause = getattr(de, '__cause__', None)
+            pgcode = getattr(cause, 'pgcode', None) or getattr(de, 'pgcode', None)
+            diag = getattr(cause, 'diag', None)
+            constraint_name = getattr(diag, 'constraint_name', None) if diag else None
+            table_name = getattr(diag, 'table_name', None) if diag else None
+            primary_msg = getattr(diag, 'message_primary', None) or str(de)
+            exc_class = de.__class__.__name__
+            logger.error(
+                "DatabaseError encountered while deleting candidate ID %s (%s, pgcode=%s, table=%s, constraint=%s): %s",
+                candidate_id, exc_class, pgcode, table_name, constraint_name, de
+            )
+            diag_details = []
+            if pgcode:
+                diag_details.append(f"SQLSTATE {pgcode}")
+            if constraint_name:
+                diag_details.append(f"Constraint: {constraint_name}")
+            elif table_name:
+                diag_details.append(f"Table: {table_name}")
+            detail_suffix = f" [{', '.join(diag_details)}]" if diag_details else ""
+            error_message = f"Database error encountered while deleting candidate '{name}' ({exc_class}{detail_suffix}): {primary_msg.strip()}. Deletion was aborted safely."
+        except Exception as exc:
+            logger.exception("Unexpected error while deleting candidate ID %s: %s", candidate_id, exc)
+            error_message = f"An unexpected error occurred while deleting candidate '{name}'. Deletion was aborted."
 
-            # Strict enforcement under row lock: must be strictly 'upcoming'
-            if cand_locked.election.status != 'upcoming':
-                messages.error(
-                    request,
-                    f"Security Alert: Cannot delete candidate '{cand_locked.name}'. Candidates can only be deleted before voting opens (while election status is upcoming). Deletion is prohibited while an election is actively ongoing or concluded."
-                )
-                return redirect('manage_election_candidates', election_id=election_id)
-
-            # Fail-closed recorded vote check under lock
-            if candidate_has_recorded_votes(cand_locked):
-                messages.error(
-                    request,
-                    f"Security Alert: Cannot delete candidate '{cand_locked.name}' because votes have already been recorded for this candidate on the blockchain ledger."
-                )
-                return redirect('manage_election_candidates', election_id=election_id)
-
-            name = cand_locked.name
-            election_title = cand_locked.election.title
-            cand_locked.delete()
-            cache.delete('home_landing_context')
-            messages.success(request, f"Candidate '{name}' was successfully removed from '{election_title}'.")
+        if not deleted_successfully:
+            messages.error(request, error_message or f"Failed to delete candidate '{name}'.")
             return redirect('manage_election_candidates', election_id=election_id)
+
+        try:
+            cache.delete('home_landing_context')
+        except Exception as cache_err:
+            logger.warning("Failed to invalidate landing cache after deleting candidate %s: %s", candidate_id, cache_err)
+
+        messages.success(request, f"Candidate '{name}' was successfully removed from '{election_title}'.")
+        return redirect('manage_election_candidates', election_id=election_id)
 
     return render(request, 'voting/manage/candidate_confirm_delete.html', {
         'candidate': candidate,

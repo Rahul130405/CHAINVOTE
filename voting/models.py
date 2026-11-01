@@ -69,7 +69,7 @@ class Candidate(models.Model):
 
 
 class Vote(models.Model):
-    election = models.ForeignKey(Election, on_delete=models.CASCADE, related_name='votes')
+    election = models.ForeignKey(Election, on_delete=models.PROTECT, related_name='votes')
     encrypted_vote = models.CharField(max_length=255)
     voter_hash = models.CharField(max_length=64)
     voter_ip = models.GenericIPAddressField(null=True, blank=True)
@@ -107,20 +107,20 @@ class Vote(models.Model):
     # 🛡️ THE BULLETPROOF FIX: Override the save method
     def save(self, *args, **kwargs):
         # Only run this logic if it's a BRAND NEW vote being created
-        if not self.pk: 
+        if not self.pk:
             with transaction.atomic():
                 # 1. Find the last vote in this specific election to link to
                 last_vote = Vote.objects.filter(election=self.election).select_for_update().order_by('-id').first()
-                
+
                 # 2. Set the previous hash
                 if last_vote and last_vote.block_hash:
                     self.previous_hash = last_vote.block_hash
                 else:
                     self.previous_hash = "0" * 64
-                
+
                 # 3. Generate this block's hash
                 self.block_hash = self.generate_hash()
-                
+
         # Actually save it to the database
         super(Vote, self).save(*args, **kwargs)
 
@@ -209,4 +209,4 @@ class CandidateAutomationState(models.Model):
     def next_eligible_at(self):
         from datetime import timedelta
         return self.last_generated_at + timedelta(days=6)
-
+

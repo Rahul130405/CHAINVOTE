@@ -8,15 +8,16 @@
     <link rel="icon" type="image/png" sizes="32x32" href="{% static 'images/favicon.png' %}">
     <link rel="icon" type="image/x-icon" href="{% static 'favicon.ico' %}">
     <link rel="apple-touch-icon" href="{% static 'images/favicon.png' %}">
-    
+
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
             theme: {
                 extend: {
                     fontFamily: {
-                        sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'sans-serif'],
+                        sans: ['Inter', 'Noto Sans Devanagari', '-apple-system', 'BlinkMacSystemFont', 'sans-serif'],
                         mono: ['JetBrains Mono', 'monospace'],
+                        devanagari: ['Noto Sans Devanagari', 'sans-serif'],
                     },
                     colors: {
                         apple: {
@@ -27,15 +28,16 @@
             }
         }
     </script>
-    
+
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="dns-prefetch" href="https://cdn.tailwindcss.com">
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Inter:wght@400;500;600;700;800;900&display=swap">
-    
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Inter:wght@400;500;600;700;800;900&family=Noto+Sans+Devanagari:wght@400;500;600;700;800&display=swap">
+    <link rel="stylesheet" href="{% static 'voting/css/i18n.css' %}">
+
     <style>
-        body { 
-            transition: background-color 0.5s ease, color 0.5s ease; 
+        body {
+            transition: background-color 0.5s ease, color 0.5s ease;
             overflow-x: hidden;
             -webkit-font-smoothing: antialiased;
             -moz-osx-font-smoothing: grayscale;
@@ -53,11 +55,11 @@
             position: fixed;
             border-radius: 50%;
             filter: blur(80px);
-            opacity: 0.25; 
+            opacity: 0.25;
             z-index: -1;
             animation: float 20s ease-in-out infinite alternate;
         }
-        
+
         .blob-1 { top: 0%; left: 0%; width: 40vw; height: 40vw; background: #3b82f6; animation-delay: 0s; }
         .blob-2 { top: 30%; right: 0%; width: 50vw; height: 50vw; background: #8b5cf6; animation-delay: -5s; }
         .blob-3 { bottom: 0%; left: 20%; width: 60vw; height: 60vw; background: #10b981; animation-delay: -10s; }
@@ -70,10 +72,10 @@
         }
 
         /* Scroll Reveal for Blocks */
-        .block-hidden { 
-            opacity: 0; 
-            transform: translateY(40px) scale(0.98); 
-            transition: all 0.8s cubic-bezier(0.16, 1, 0.3, 1); 
+        .block-hidden {
+            opacity: 0;
+            transform: translateY(40px) scale(0.98);
+            transition: all 0.8s cubic-bezier(0.16, 1, 0.3, 1);
         }
         .block-visible { opacity: 1; transform: translateY(0) scale(1); }
 
@@ -109,9 +111,14 @@
                 <img src="{% static 'voting/images/logo.webp' %}" alt="ChainVote Logo" class="w-8 h-8 object-contain transition-transform hover:scale-110" width="32" height="32" loading="eager" fetchpriority="high">
                 <span class="text-lg font-semibold tracking-tight">ChainVote</span>
             </a>
-            
+
             <div class="flex items-center space-x-4">
-                <a href="{% url 'results' election.id %}" class="text-sm font-semibold bg-black text-white px-4 py-2 rounded-full hover:scale-105 transition transform shadow-sm">
+                <!-- Bilingual Toggle -->
+                <button id="lang-toggle" onclick="toggleLanguage()" class="flex items-center space-x-1 px-3 py-1 rounded-full text-xs font-semibold bg-gray-100 hover:bg-gray-200 text-gray-700 transition border border-gray-200" aria-label="Switch language between English and Hindi">
+                    <span>🌐</span>
+                    <span id="lang-text">हिंदी</span>
+                </button>
+                <a href="{% url 'results' election.id %}" class="text-sm font-semibold bg-black text-white px-4 py-2 rounded-full hover:scale-105 transition transform shadow-sm" data-i18n="link_exit_results">
                     Exit to Results
                 </a>
             </div>
@@ -125,30 +132,30 @@
               <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
             </div>
         </div>
-        <h1 class="text-5xl md:text-7xl font-bold tracking-tighter leading-tight mb-2 text-gray-900">
+        <h1 class="text-5xl md:text-7xl font-bold tracking-tight md:tracking-tighter leading-tight mb-2 text-gray-900" data-i18n="explorer_title">
             Ledger Explorer
         </h1>
-        <p class="text-lg text-gray-600 font-medium mb-10">{{ election.title }}</p>
+        <p class="text-lg text-gray-600 font-medium mb-10" data-i18n-dynamic data-en="{{ election.title }}">{{ election.title }}</p>
 
         <div class="flex flex-col md:flex-row gap-4">
             <div class="flex-1 bg-white/80 glass-panel border border-gray-200/80 rounded-2xl p-2 flex items-center shadow-sm focus-within:ring-2 focus-within:ring-blue-500/50 transition">
                 <svg class="w-5 h-5 text-gray-400 ml-3 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
-                <input type="text" id="hashSearch" onkeyup="searchBlockchain()" placeholder="Paste Voter Hash or Block Hash to audit..." class="w-full bg-transparent border-none text-gray-900 px-2 py-2 focus:outline-none placeholder-gray-500 font-mono text-sm">
+                <input type="text" id="hashSearch" onkeyup="searchBlockchain()" placeholder="Paste Voter Hash or Block Hash to audit..." data-i18n-placeholder="ph_hash_search" class="w-full bg-transparent border-none text-gray-900 px-2 py-2 focus:outline-none placeholder-gray-500 font-mono text-sm">
             </div>
-            
+
             <button onclick="verifyIntegrity()" id="verifyBtn" class="bg-white border border-gray-200 hover:border-blue-500 hover:bg-blue-50 text-gray-900 px-6 py-4 rounded-2xl text-sm font-semibold transition flex items-center justify-center shadow-sm glass-panel whitespace-nowrap">
                 <svg class="w-4 h-4 mr-2 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                Verify Integrity
+                <span data-i18n="btn_verify_integrity">Verify Integrity</span>
             </button>
         </div>
-        <p id="searchResultMsg" class="text-emerald-600 text-sm mt-3 hidden font-semibold pl-2 transition-all">✓ Cryptographic block found on the public ledger.</p>
+        <p id="searchResultMsg" class="text-emerald-600 text-sm mt-3 hidden font-semibold pl-2 transition-all" data-i18n="msg_block_found">✓ Cryptographic block found on the public ledger.</p>
     </header>
 
     <div class="max-w-3xl mx-auto px-6 relative z-10 pb-32" id="chain-container">
-        
+
         {% for vote in votes %}
         <div class="relative mb-16 block-item">
-            
+
             {% if not forloop.last %}
             <div class="absolute left-8 md:left-12 top-[100%] h-16 w-1.5 bg-gray-200 rounded-full overflow-hidden z-0">
                 <div class="w-full h-full bg-gradient-to-b from-transparent via-blue-500 to-transparent animate-[flowDown_2s_linear_infinite]"></div>
@@ -159,13 +166,13 @@
             {% endif %}
 
             <div class="block-hidden block-card glass-panel bg-white/80 border border-gray-200/80 rounded-[2rem] p-6 md:p-10 shadow-lg relative z-10 transition-all duration-300">
-                
+
                 <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 pb-5 border-b border-gray-200">
                     <h2 class="text-xl md:text-2xl font-bold text-gray-900 flex items-center">
                         <div class="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center mr-3 border border-blue-200">
                             <svg class="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path></svg>
                         </div>
-                        Block #{{ vote.id }}
+                        <span data-i18n="lbl_block_num">Block #</span>{{ vote.id }}
                     </h2>
                     <span class="text-xs font-semibold text-gray-500 mt-3 md:mt-0 bg-gray-100 px-3 py-1.5 rounded-full">
                         {{ vote.voted_at|date:"M d, Y • H:i:s.u" }}
@@ -173,21 +180,21 @@
                 </div>
 
                 <div class="space-y-4">
-                    
+
                     <div class="group bg-white rounded-2xl p-4 border border-gray-100 shadow-sm hover:border-gray-300 transition">
                         <div class="flex justify-between items-center mb-1.5">
-                            <span class="text-[10px] text-gray-500 uppercase tracking-widest font-bold flex items-center">
+                            <span class="text-[10px] text-gray-500 uppercase tracking-widest font-bold flex items-center" data-i18n="lbl_prev_hash">
                                 <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"></path></svg>
                                 Linked Previous Hash
                             </span>
-                            <span class="text-[10px] text-blue-500 opacity-0 group-hover:opacity-100 transition">Copy</span>
+                            <span class="text-[10px] text-blue-500 opacity-0 group-hover:opacity-100 transition" data-i18n="btn_copy">Copy</span>
                         </div>
                         <p class="font-mono text-gray-600 text-xs break-all copyable" onclick="copyToClipboard(this, '{{ vote.previous_hash }}')">{{ vote.previous_hash }}</p>
                     </div>
 
                     <div class="group bg-gray-50 rounded-2xl p-4 border border-gray-100 transition">
                         <div class="flex justify-between items-center mb-1.5">
-                            <span class="text-[10px] text-gray-500 uppercase tracking-widest font-bold">Encrypted Payload (AES-256)</span>
+                            <span class="text-[10px] text-gray-500 uppercase tracking-widest font-bold" data-i18n="lbl_encrypted_payload">Encrypted Payload (AES-256)</span>
                         </div>
                         <p class="font-mono text-gray-400 text-xs break-all">{{ vote.encrypted_vote }}</p>
                     </div>
@@ -196,8 +203,8 @@
 
                     <div class="group bg-blue-50 rounded-2xl p-4 border border-blue-200 hover:border-blue-400 transition relative overflow-hidden">
                         <div class="flex justify-between items-center mb-1.5">
-                            <span class="text-[10px] text-blue-600 uppercase tracking-widest font-bold">Generated Block Hash</span>
-                            <span class="text-[10px] text-blue-600 opacity-0 group-hover:opacity-100 transition">Copy</span>
+                            <span class="text-[10px] text-blue-600 uppercase tracking-widest font-bold" data-i18n="lbl_generated_block_hash">Generated Block Hash</span>
+                            <span class="text-[10px] text-blue-600 opacity-0 group-hover:opacity-100 transition" data-i18n="btn_copy">Copy</span>
                         </div>
                         <p class="font-mono text-blue-700 font-semibold text-xs break-all copyable" onclick="copyToClipboard(this, '{{ vote.block_hash }}')">{{ vote.block_hash }}</p>
                     </div>
@@ -205,17 +212,19 @@
                 </div>
             </div>
         </div>
-        
+
         {% empty %}
         <div class="block-hidden block-card mt-10 text-center py-20 bg-white/80 border border-dashed border-gray-300 rounded-[2rem] glass-panel">
             <div class="animate-bounce mb-6"><svg class="w-12 h-12 mx-auto text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg></div>
-            <h3 class="text-2xl text-gray-900 font-bold">Ledger is Empty</h3>
-            <p class="text-gray-500 mt-2 font-medium">Waiting for the Genesis Block to be mined...</p>
+            <h3 class="text-2xl text-gray-900 font-bold" data-i18n="empty_ledger_title">Ledger is Empty</h3>
+            <p class="text-gray-500 mt-2 font-medium" data-i18n="empty_ledger_desc">Waiting for the Genesis Block to be mined...</p>
         </div>
         {% endfor %}
 
     </div>
 
+    <!-- Centralized Internationalization Engine -->
+    <script src="{% static 'voting/js/i18n.js' %}"></script>
     <script>
         // Scroll Reveal Animation
         document.addEventListener("DOMContentLoaded", () => {
@@ -235,7 +244,7 @@
                     }
                 });
             }, observerOptions);
-            
+
             document.querySelectorAll('.block-item.block-hidden, .block-card.block-hidden').forEach(block => blockObserver.observe(block));
         });
 
@@ -252,18 +261,18 @@
         function verifyIntegrity() {
             const btn = document.getElementById('verifyBtn');
             const originalHTML = btn.innerHTML;
-            
+
             btn.innerHTML = `<svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>Scanning Hashes...`;
-            btn.classList.add('border-blue-500', 'text-blue-600'); 
-            
+            btn.classList.add('border-blue-500', 'text-blue-600');
+
             setTimeout(() => {
                 btn.innerHTML = `<svg class="w-4 h-4 mr-2 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>Chain Valid`;
                 btn.classList.remove('border-blue-500', 'text-blue-600');
                 btn.classList.add('border-emerald-500', 'text-emerald-600', 'bg-emerald-50');
-                
+
                 setTimeout(() => {
-                    btn.innerHTML = originalHTML; 
-                    btn.classList.remove('border-emerald-500', 'text-emerald-600', 'bg-emerald-50'); 
+                    btn.innerHTML = originalHTML;
+                    btn.classList.remove('border-emerald-500', 'text-emerald-600', 'bg-emerald-50');
                 }, 3000);
             }, 1800);
         }
@@ -279,7 +288,7 @@
                 blocks.forEach(block => {
                     block.style.opacity = '1';
                     const card = block.querySelector('.block-card');
-                    if(card) { 
+                    if(card) {
                         card.classList.remove('ring-2', 'ring-blue-500');
                         card.style.transform = 'scale(1)';
                     }
@@ -291,11 +300,11 @@
             blocks.forEach(block => {
                 const blockText = block.innerText.toLowerCase();
                 const hiddenVoterHash = block.querySelector('.searchable-voter-hash').innerText.toLowerCase();
-                
+
                 if (blockText.includes(input) || hiddenVoterHash.includes(input)) {
                     block.style.opacity = '1';
                     const card = block.querySelector('.block-card');
-                    if(card) { 
+                    if(card) {
                         card.classList.add('ring-2', 'ring-blue-500');
                         card.style.transform = 'scale(1.02)';
                     }
@@ -304,7 +313,7 @@
                 } else {
                     block.style.opacity = '0.3';
                     const card = block.querySelector('.block-card');
-                    if(card) { 
+                    if(card) {
                         card.classList.remove('ring-2', 'ring-blue-500');
                         card.style.transform = 'scale(0.98)';
                     }

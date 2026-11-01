@@ -151,10 +151,10 @@ def test_phase2_home_dashboard_and_responsive(browser, live_server, staff_user, 
     assert "How to Cast Your Vote" in browser.page_source
 
     # Check 4 Steps in guide
-    assert "Sign In" in browser.page_source
     assert "Choose Election" in browser.page_source
-    assert "Verify & Select" in browser.page_source
-    assert "Review & Confirm" in browser.page_source
+    assert "Verify Voter ID" in browser.page_source
+    assert "Select Candidate" in browser.page_source
+    assert ("Review & Confirm" in browser.page_source or "Review &amp; Confirm" in browser.page_source)
 
     # Check Active Election details and CTA
     assert active_election.title in browser.page_source

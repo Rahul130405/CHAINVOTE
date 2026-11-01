@@ -3,41 +3,58 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Voting Receipt - {{ election.title }}</title>
     <link rel="icon" type="image/png" sizes="32x32" href="{% static 'images/favicon.png' %}">
     <link rel="icon" type="image/x-icon" href="{% static 'favicon.ico' %}">
     <link rel="apple-touch-icon" href="{% static 'images/favicon.png' %}">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+Devanagari:wght@400;500;600;700;800&display=swap">
+    <link rel="stylesheet" href="{% static 'voting/css/i18n.css' %}">
+
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-gray-950 text-gray-200 min-h-screen flex items-center justify-center p-6 font-sans">
+<body class="bg-gray-950 text-gray-200 min-h-screen flex items-center justify-center p-6 font-sans relative">
+
+    <div class="absolute top-4 right-6 z-20">
+        <button id="lang-toggle" onclick="toggleLanguage()" class="flex items-center space-x-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-gray-900/90 text-gray-300 hover:text-white hover:bg-gray-800 transition border border-gray-700 shadow-sm" aria-label="Switch language between English and Hindi">
+            <span>🌐</span>
+            <span id="lang-text">हिंदी</span>
+        </button>
+    </div>
 
     <div class="max-w-xl w-full bg-[#0B1120] border border-gray-800 rounded-2xl shadow-2xl overflow-hidden relative">
-        
+
         <div class="bg-gradient-to-r from-emerald-900/50 to-blue-900/50 p-6 border-b border-gray-800 text-center">
             <div class="inline-flex items-center justify-center w-12 h-12 rounded-full bg-emerald-500/20 text-emerald-400 mb-4 shadow-[0_0_15px_rgba(16,185,129,0.4)]">
                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
             </div>
-            <h1 class="text-2xl font-bold text-white mb-1">Official Voting Receipt</h1>
-            <p class="text-gray-400 text-sm">Election: {{ election.title }}</p>
+            <h1 class="text-2xl font-bold text-white mb-1" data-i18n="receipt_title_official">Official Voting Receipt</h1>
+            <p class="text-gray-400 text-sm">
+                <span data-i18n="receipt_election_lbl">Election</span>:
+                <span class="font-semibold text-gray-200" data-i18n-dynamic data-en="{{ election.title }}">{{ election.title }}</span>
+            </p>
         </div>
 
         <div class="p-8 space-y-6">
             <div class="bg-black/50 p-4 rounded-lg border border-gray-800">
-                <p class="text-xs text-gray-500 uppercase tracking-wider mb-1 font-bold">Time Cast</p>
+                <p class="text-xs text-gray-500 uppercase tracking-wider mb-1 font-bold" data-i18n="lbl_time_cast">Time Cast</p>
                 <p class="text-gray-300">{{ vote.voted_at|date:"F j, Y - H:i:s.u" }}</p>
             </div>
 
             <div class="bg-black/50 p-4 rounded-lg border border-gray-800">
-                <p class="text-xs text-blue-400 uppercase tracking-wider mb-1 font-bold">Your Anonymous Voter Hash</p>
+                <p class="text-xs text-blue-400 uppercase tracking-wider mb-1 font-bold" data-i18n="lbl_anon_voter_hash">Your Anonymous Voter Hash</p>
                 <p class="font-mono text-sm text-blue-300 break-all select-all">{{ vote.voter_hash }}</p>
             </div>
 
             <div class="bg-blue-900/20 p-4 rounded-lg border border-blue-500/30">
-                <p class="text-xs text-emerald-400 uppercase tracking-wider mb-1 font-bold">Your Block Hash (Ledger ID)</p>
+                <p class="text-xs text-emerald-400 uppercase tracking-wider mb-1 font-bold" data-i18n="lbl_block_hash_receipt">Your Block Hash (Ledger ID)</p>
                 <p class="font-mono text-sm text-emerald-300 break-all select-all">{{ vote.block_hash }}</p>
             </div>
 
-            <p class="text-xs text-gray-500 text-center mt-6">
+            <p class="text-xs text-gray-500 text-center mt-6" data-i18n="receipt_save_note">
                 * Please save this receipt. You can use your Block Hash to verify your vote was permanently recorded on the blockchain without revealing your identity.
             </p>
         </div>
@@ -45,12 +62,14 @@
         <div class="p-6 border-t border-gray-800 flex justify-between items-center bg-black/20">
             <button onclick="window.print()" class="text-gray-400 hover:text-white transition flex items-center text-sm font-medium">
                 <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
-                Print / Save PDF
+                <span data-i18n="btn_print_pdf">Print / Save PDF</span>
             </button>
             <a href="{% url 'home' %}" class="bg-blue-600 hover:bg-blue-500 text-white px-5 py-2.5 rounded-lg text-sm font-bold transition shadow-lg shadow-blue-500/20">
-                Return to Home →
+                <span data-i18n="btn_return_home">Return to Home →</span>
             </a>
         </div>
     </div>
+
+    <script src="{% static 'voting/js/i18n.js' %}"></script>
 </body>
 </html>
