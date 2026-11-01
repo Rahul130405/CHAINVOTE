@@ -11,8 +11,8 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 from rest_framework import status
 
-from django.db.models import Count
-from django.db import transaction
+from django.db.models import Count, ProtectedError
+from django.db import transaction, IntegrityError, DatabaseError
 from django.core.cache import cache
 
 from .models import Election, Candidate, Vote, SecurityLog
@@ -633,7 +633,7 @@ def api_cron_add_candidate(request):
 def manage_dashboard(request):
     """Admin dashboard listing all elections and metrics."""
     elections = list(Election.objects.prefetch_related('candidates').all().order_by('-start_time'))
-    
+
     # Compute counts and attached vote numbers
     total_elections = len(elections)
     active_elections = 0
@@ -662,14 +662,6 @@ def manage_dashboard(request):
     soc_logs = list(SecurityLog.objects.only('id', 'level', 'action', 'ip_address', 'details', 'timestamp').all()[:50])
     critical_count = SecurityLog.objects.filter(level='CRITICAL').count()
 
-    # Blockchain Ledger Operations data
-    total_blocks = Vote.objects.count()
-    recent_blocks = list(
-        Vote.objects.select_related('election')
-        .only('id', 'election__title', 'voted_at', 'previous_hash', 'encrypted_vote', 'block_hash')
-        .order_by('-id')[:25]
-    )
-
     return render(request, 'voting/manage/dashboard.html', {
         'elections': elections,
         'total_elections': total_elections,
@@ -679,8 +671,52 @@ def manage_dashboard(request):
         'soc_logs': soc_logs,
         'logs': soc_logs,
         'critical_count': critical_count,
+        'all_chains_valid': all_chains_valid,
+    })
+
+
+@admin_required
+def manage_ledger(request):
+    """
+    Dedicated Admin Blockchain Ledger Operations view.
+    Visualizes sequentially connected cryptographic blocks with real DB records,
+    integrity checks, election filtering, and live search.
+    """
+    election_id = request.GET.get('election')
+    elections = list(Election.objects.all().order_by('-start_time'))
+
+    selected_election = None
+    all_chains_valid = True
+
+    for e in elections:
+        e.vote_count = Vote.objects.filter(election=e).count()
+        is_valid, _ = verify_election_blockchain(e)
+        e.chain_valid = is_valid
+        if not is_valid:
+            all_chains_valid = False
+
+    if election_id:
+        try:
+            selected_election = Election.objects.get(id=int(election_id))
+            votes_qs = Vote.objects.filter(election=selected_election)
+        except (ValueError, TypeError, Election.DoesNotExist):
+            selected_election = None
+            votes_qs = Vote.objects.all()
+    else:
+        votes_qs = Vote.objects.all()
+
+    total_blocks = Vote.objects.count()
+    votes = list(
+        votes_qs.select_related('election')
+        .only('id', 'election__id', 'election__title', 'voted_at', 'previous_hash', 'encrypted_vote', 'voter_hash', 'block_hash')
+        .order_by('id')
+    )
+
+    return render(request, 'voting/manage/ledger.html', {
+        'elections': elections,
+        'selected_election': selected_election,
+        'votes': votes,
         'total_blocks': total_blocks,
-        'recent_blocks': recent_blocks,
         'all_chains_valid': all_chains_valid,
     })
 
@@ -736,7 +772,11 @@ def manage_election_delete(request, election_id):
     3. Deletion does not violate any integrity constraint.
     Enforces POST-only mutation, atomic row locking, and fail-closed safety.
     """
-    election = get_object_or_404(Election, id=election_id)
+    try:
+        election = Election.objects.get(id=election_id)
+    except (Election.DoesNotExist, ValueError):
+        messages.error(request, "Election not found or no longer exists.")
+        return redirect('manage_dashboard')
 
     # Pre-flight check
     blocking_reason = get_election_deletion_blocking_reason(election)
@@ -745,31 +785,69 @@ def manage_election_delete(request, election_id):
         return redirect('manage_dashboard')
 
     if request.method == 'POST':
-        with transaction.atomic():
-            elec_locked = (
-                Election.objects
-                .select_for_update()
-                .filter(id=election_id)
-                .first()
-            )
-            if not elec_locked:
-                messages.error(request, "Election no longer exists.")
-                return redirect('manage_dashboard')
+        title = election.title
+        deleted_successfully = False
+        error_message = None
 
-            reason = get_election_deletion_blocking_reason(elec_locked)
-            if reason:
-                messages.error(request, f"Security Alert: Cannot delete election '{elec_locked.title}'. {reason}")
-                return redirect('manage_dashboard')
+        try:
+            with transaction.atomic():
+                elec_locked = (
+                    Election.objects
+                    .select_for_update()
+                    .filter(id=election_id)
+                    .first()
+                )
+                if not elec_locked:
+                    messages.error(request, "Election no longer exists.")
+                    return redirect('manage_dashboard')
 
-            title = elec_locked.title
-            elec_locked.delete()
-            cache.delete('home_landing_context')
-            messages.success(request, f"Election '{title}' was safely deleted.")
+                reason = get_election_deletion_blocking_reason(elec_locked)
+                if reason:
+                    messages.error(request, f"Security Alert: Cannot delete election '{elec_locked.title}'. {reason}")
+                    return redirect('manage_dashboard')
+
+                # Explicit defense-in-depth: Never allow deletion if votes exist
+                if Vote.objects.filter(election=elec_locked).exists():
+                    messages.error(
+                        request,
+                        f"Security Alert: Cannot delete election '{elec_locked.title}'. Recorded votes exist on the cryptographic ledger."
+                    )
+                    return redirect('manage_dashboard')
+
+                title = elec_locked.title
+                elec_locked.delete()
+                deleted_successfully = True
+
+        except ProtectedError as pe:
+            logger.warning("ProtectedError encountered while deleting election ID %s: %s", election_id, pe)
+            error_message = f"Cannot delete election '{title}': It is referenced by protected dependent records."
+        except IntegrityError as ie:
+            logger.error("IntegrityError encountered while deleting election ID %s: %s", election_id, ie)
+            error_message = f"Database constraint violation: Cannot delete election '{title}' due to existing database dependencies."
+        except DatabaseError as de:
+            logger.error("DatabaseError encountered while deleting election ID %s: %s", election_id, de)
+            error_message = f"Database error encountered while deleting election '{title}'. Please try again."
+        except Exception as exc:
+            logger.exception("Unexpected error while deleting election ID %s: %s", election_id, exc)
+            error_message = f"An unexpected error occurred while deleting election '{title}'. Deletion was aborted."
+
+        if not deleted_successfully:
+            messages.error(request, error_message or f"Failed to delete election '{title}'.")
             return redirect('manage_dashboard')
+
+        # Invalidate landing cache safely outside the atomic transaction
+        try:
+            cache.delete('home_landing_context')
+        except Exception as cache_err:
+            logger.warning("Failed to invalidate landing cache after deleting election %s: %s", election_id, cache_err)
+
+        messages.success(request, f"Election '{title}' was safely deleted.")
+        return redirect('manage_dashboard')
 
     # GET request: Render confirmation template. Never perform deletion on GET.
     return render(request, 'voting/manage/election_confirm_delete.html', {
         'election': election,
+        'title': f"Confirm Deletion: {election.title}",
     })
 
 

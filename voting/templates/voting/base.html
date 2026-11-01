@@ -121,6 +121,7 @@
                     <span class="text-xs md:text-sm font-medium text-gray-700">👤 {{ user.username }}</span>
                     {% if user.is_staff or user.is_superuser %}
                         <a href="{% url 'manage_dashboard' %}" class="text-xs md:text-sm font-semibold text-blue-600 hover:text-blue-800 transition" id="nav-manage-link">Manage</a>
+                        <a href="{% url 'manage_ledger' %}" class="text-xs md:text-sm font-semibold text-emerald-600 hover:text-emerald-800 transition" id="nav-ledger-link">Ledger</a>
                     {% endif %}
                     <a href="{% url 'logout' %}" class="text-xs md:text-sm font-medium text-gray-600 hover:text-black transition" data-i18n="nav_signout">Sign Out</a>
                 {% else %}

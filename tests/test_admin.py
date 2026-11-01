@@ -17,7 +17,10 @@ from django.contrib.auth.models import AnonymousUser, User
 from django.contrib.messages.storage.fallback import FallbackStorage
 from django.http import HttpResponse
 
-from django.db import connection, transaction
+from django.db import connection, transaction, IntegrityError, DatabaseError
+from django.db.models import ProtectedError
+from django.core.cache import cache
+from unittest.mock import patch
 from voting.decorators import admin_required
 from voting.forms import ElectionForm, CandidateForm, candidate_has_recorded_votes
 from voting.models import Election, Candidate, Vote, SecurityLog
@@ -516,6 +519,153 @@ def test_get_requests_cannot_trigger_election_deletion(client, staff_user):
 
     # Election STILL EXISTS in the database
     assert Election.objects.filter(id=election.id).exists() is True
+
+
+@pytest.mark.django_db
+def test_upcoming_election_with_zero_candidates_and_zero_votes_is_safely_deleted(client, staff_user):
+    """
+    Verified fix: Upcoming election with 0 candidates and 0 votes is safely deleted.
+    Redirects cleanly to manage_dashboard with success flash message; no HTTP 500.
+    """
+    now = timezone.now()
+    election = Election.objects.create(
+        title="Zero Cand Zero Vote Election",
+        description="Testing clean upcoming deletion.",
+        start_time=now + timedelta(days=3),
+        end_time=now + timedelta(days=6),
+    )
+    assert election.status == 'upcoming'
+    assert election.candidates.count() == 0
+    assert Vote.objects.filter(election=election).count() == 0
+
+    client.force_login(staff_user)
+
+    del_url = reverse('manage_election_delete', args=[election.id])
+    del_resp = client.post(del_url, follow=True)
+
+    assert del_resp.status_code == 200
+    assert del_resp.redirect_chain[0][0] == reverse('manage_dashboard')
+    content = del_resp.content.decode()
+    assert "was safely deleted" in content
+    assert Election.objects.filter(id=election.id).exists() is False
+
+
+@pytest.mark.django_db
+def test_manage_election_delete_handles_protected_error_safely(client, staff_user):
+    """
+    If a ProtectedError is raised during election deletion, the view catches it,
+    rolls back safely, displays a user-friendly error message, and does NOT return HTTP 500.
+    """
+    now = timezone.now()
+    election = Election.objects.create(
+        title="Protected Error Test Election",
+        start_time=now + timedelta(days=3),
+        end_time=now + timedelta(days=6),
+    )
+    client.force_login(staff_user)
+
+    del_url = reverse('manage_election_delete', args=[election.id])
+    with patch.object(Election, 'delete', side_effect=ProtectedError("Protected by FK constraint", Candidate.objects.none())):
+        del_resp = client.post(del_url, follow=True)
+
+    assert del_resp.status_code == 200
+    assert del_resp.redirect_chain[0][0] == reverse('manage_dashboard')
+    content = del_resp.content.decode()
+    assert "Cannot delete election" in content
+    assert "protected" in content.lower()
+    # Election was preserved
+    assert Election.objects.filter(id=election.id).exists() is True
+
+
+@pytest.mark.django_db
+def test_manage_election_delete_handles_integrity_error_safely(client, staff_user):
+    """
+    If an IntegrityError (e.g. database foreign key violation) occurs,
+    the view rolls back cleanly, displays a user-friendly error message, and does NOT return HTTP 500.
+    """
+    now = timezone.now()
+    election = Election.objects.create(
+        title="Integrity Error Test Election",
+        start_time=now + timedelta(days=3),
+        end_time=now + timedelta(days=6),
+    )
+    client.force_login(staff_user)
+
+    del_url = reverse('manage_election_delete', args=[election.id])
+    with patch.object(Election, 'delete', side_effect=IntegrityError("Foreign key violation")):
+        del_resp = client.post(del_url, follow=True)
+
+    assert del_resp.status_code == 200
+    assert del_resp.redirect_chain[0][0] == reverse('manage_dashboard')
+    content = del_resp.content.decode()
+    assert "Database constraint violation" in content
+    assert Election.objects.filter(id=election.id).exists() is True
+
+
+@pytest.mark.django_db
+def test_manage_election_delete_handles_database_error_safely(client, staff_user):
+    """
+    If a DatabaseError (e.g. connection pool timeout or lock error) occurs,
+    the view rolls back cleanly, displays a user-friendly retry message, and does NOT return HTTP 500.
+    """
+    now = timezone.now()
+    election = Election.objects.create(
+        title="Database Error Test Election",
+        start_time=now + timedelta(days=3),
+        end_time=now + timedelta(days=6),
+    )
+    client.force_login(staff_user)
+
+    del_url = reverse('manage_election_delete', args=[election.id])
+    with patch.object(Election, 'delete', side_effect=DatabaseError("Connection timeout")):
+        del_resp = client.post(del_url, follow=True)
+
+    assert del_resp.status_code == 200
+    assert del_resp.redirect_chain[0][0] == reverse('manage_dashboard')
+    content = del_resp.content.decode()
+    assert "Database error encountered" in content
+    assert Election.objects.filter(id=election.id).exists() is True
+
+
+@pytest.mark.django_db
+def test_manage_election_delete_cache_invalidation_failure_does_not_rollback_deletion(client, staff_user):
+    """
+    If cache invalidation fails, the database deletion has already committed successfully.
+    The view must NOT roll back the database transaction, must NOT raise HTTP 500,
+    and must inform the user of successful deletion.
+    """
+    now = timezone.now()
+    election = Election.objects.create(
+        title="Cache Failure Test Election",
+        start_time=now + timedelta(days=3),
+        end_time=now + timedelta(days=6),
+    )
+    client.force_login(staff_user)
+
+    del_url = reverse('manage_election_delete', args=[election.id])
+    with patch.object(cache, 'delete', side_effect=Exception("Cache backend connection dropped")):
+        del_resp = client.post(del_url, follow=True)
+
+    assert del_resp.status_code == 200
+    assert del_resp.redirect_chain[0][0] == reverse('manage_dashboard')
+    content = del_resp.content.decode()
+    assert "was safely deleted" in content
+    assert Election.objects.filter(id=election.id).exists() is False
+
+
+@pytest.mark.django_db
+def test_manage_election_delete_handles_nonexistent_election_gracefully(client, staff_user):
+    """
+    Attempting to delete a non-existent election ID redirects gracefully
+    to manage_dashboard with an error message instead of throwing an unhandled 500.
+    """
+    client.force_login(staff_user)
+    del_url = reverse('manage_election_delete', args=[999999])
+    del_resp = client.post(del_url, follow=True)
+
+    assert del_resp.status_code == 200
+    assert del_resp.redirect_chain[0][0] == reverse('manage_dashboard')
+    assert "Election not found or no longer exists" in del_resp.content.decode()
 
 
 @pytest.mark.django_db

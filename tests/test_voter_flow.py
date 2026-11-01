@@ -216,41 +216,116 @@ def test_blockchain_explorer_is_restricted_to_admin(client, active_election, tes
 
 
 @pytest.mark.django_db
-def test_manage_dashboard_displays_integrated_blockchain_ledger_section(client, staff_user, active_election):
+def test_manage_dashboard_excludes_embedded_ledger_table(client, staff_user, active_election):
     """
-    Staff user accessing /manage/ can view the integrated Blockchain Ledger section,
-    including recorded blocks counter, chain verification status, and block history table.
+    Manage Dashboard is focused on election management; the embedded ledger table
+    has been removed and replaced with a link to the dedicated /manage/ledger/ route.
     """
     client.force_login(staff_user)
+    resp = client.get(reverse('manage_dashboard'))
+    assert resp.status_code == 200
+    content = resp.content.decode()
 
-    # 1. Initially with 0 blocks: empty row is rendered
-    resp_empty = client.get(reverse('manage_dashboard'))
+    # Embedded table and its section must NOT exist on manage dashboard
+    assert 'id="blockchain-ledger-section"' not in content
+    assert 'id="ledger-blocks-table"' not in content
+    assert "Blockchain Ledger Operations" not in content
+
+    # Header jump link points to dedicated /manage/ledger/
+    ledger_url = reverse('manage_ledger')
+    assert f'href="{ledger_url}"' in content
+    assert 'id="btn-jump-ledger"' in content
+
+    # Top navigation contains Ledger link for authorized admin
+    assert 'id="nav-ledger-link"' in content
+
+
+@pytest.mark.django_db
+def test_dedicated_manage_ledger_page_access_and_security(client, active_election, test_user, staff_user):
+    """
+    Dedicated /manage/ledger/ enforces fail-closed administrator authorization:
+    - Anonymous users are redirected to login with ?next=...
+    - Regular voters are blocked and redirected to /
+    - Staff/authorized admins are granted access (200 OK)
+    """
+    ledger_url = reverse('manage_ledger')
+
+    # 1. Anonymous user redirected to login
+    resp_anon = client.get(ledger_url)
+    assert resp_anon.status_code == 302
+    assert resp_anon.url.startswith(f'/login/?next={ledger_url}')
+
+    # 2. Regular voter redirected to home
+    client.force_login(test_user)
+    resp_voter = client.get(ledger_url, follow=True)
+    assert resp_voter.status_code == 200
+    assert resp_voter.redirect_chain[0][0] == '/'
+    assert "Access restricted" in resp_voter.content.decode()
+
+    # 3. Staff user granted access
+    client.force_login(staff_user)
+    resp_staff = client.get(ledger_url)
+    assert resp_staff.status_code == 200
+    content = resp_staff.content.decode()
+    assert "Blockchain Ledger" in content
+    assert 'id="ledger-heading"' in content
+
+
+@pytest.mark.django_db
+def test_dedicated_manage_ledger_visual_blocks_and_integrity(client, staff_user, active_election):
+    """
+    Dedicated /manage/ledger/ renders sequentially connected visual block cards,
+    real database hashes, chain integrity indicators, search controls, and election filters.
+    """
+    client.force_login(staff_user)
+    ledger_url = reverse('manage_ledger')
+
+    # 1. Empty state when 0 votes exist
+    resp_empty = client.get(ledger_url)
     assert resp_empty.status_code == 200
     content_empty = resp_empty.content.decode()
 
-    assert 'id="btn-jump-ledger"' in content_empty
-    assert 'id="blockchain-ledger-section"' in content_empty
-    assert "Blockchain Ledger Operations" in content_empty
     assert 'id="ledger-total-blocks">0<' in content_empty
     assert 'id="ledger-chain-status"' in content_empty
     assert "Chains Valid" in content_empty
-    assert 'id="ledger-empty-row"' in content_empty
+    assert 'id="ledger-empty-state"' in content_empty
     assert "Ledger is Empty" in content_empty
 
-    # 2. Cast a vote to generate a cryptographic block
+    # 2. Cast 1st vote
     candidate = active_election.candidates.first()
     vote_url = reverse('cast_vote', args=[active_election.id])
     client.post(vote_url, {'aadhaar': 'BLOCK12345', 'candidate_id': candidate.id})
 
-    # 3. Manage dashboard now displays recorded block in the table
-    resp_blocks = client.get(reverse('manage_dashboard'))
+    # 3. Cast 2nd vote to verify sequential connection
+    client.post(vote_url, {'aadhaar': 'BLOCK67890', 'candidate_id': candidate.id})
+
+    # 4. Ledger renders connected blocks
+    resp_blocks = client.get(ledger_url)
     assert resp_blocks.status_code == 200
     content_blocks = resp_blocks.content.decode()
 
-    assert 'id="ledger-total-blocks">1<' in content_blocks
-    assert 'id="ledger-blocks-table"' in content_blocks
-    assert 'class="hover:bg-emerald-50/20 transition-colors ledger-block-row"' in content_blocks
-    assert active_election.title in content_blocks
-    vote = Vote.objects.first()
-    assert vote.previous_hash[:16] in content_blocks
-    assert vote.block_hash[:16] in content_blocks
+    assert 'id="ledger-total-blocks">2<' in content_blocks
+    assert 'id="ledger-empty-state"' not in content_blocks
+
+    votes = list(Vote.objects.filter(election=active_election).order_by('id'))
+    assert len(votes) == 2
+
+    # Block cards rendered with real hashes
+    for v in votes:
+        assert f'id="block-item-{v.id}"' in content_blocks
+        assert f"Block #{v.id}" in content_blocks
+        assert v.previous_hash in content_blocks
+        assert v.block_hash in content_blocks
+        assert v.encrypted_vote in content_blocks
+
+    # Sequential connection elements present
+    assert "SHA-256 Link" in content_blocks
+    assert "flowDown" in content_blocks
+    assert 'id="verifyBtn"' in content_blocks
+    assert 'id="ledgerSearch"' in content_blocks
+
+    # 5. Election filtering works
+    filter_url = f"{ledger_url}?election={active_election.id}"
+    resp_filter = client.get(filter_url)
+    assert resp_filter.status_code == 200
+    assert active_election.title in resp_filter.content.decode()

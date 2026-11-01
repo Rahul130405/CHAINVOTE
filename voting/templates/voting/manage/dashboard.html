@@ -15,7 +15,7 @@
             <p class="text-sm text-gray-600 mt-1">Configure elections, review schedules, and manage candidate rosters.</p>
         </div>
         <div class="flex flex-wrap items-center gap-3">
-            <a href="#blockchain-ledger-section" id="btn-jump-ledger" class="inline-flex items-center space-x-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-semibold text-sm px-4 py-2.5 rounded-xl border border-emerald-200 shadow-sm transition-all">
+            <a href="{% url 'manage_ledger' %}" id="btn-jump-ledger" class="inline-flex items-center space-x-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-semibold text-sm px-4 py-2.5 rounded-xl border border-emerald-200 shadow-sm transition-all">
                 <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
                 <span>Blockchain Ledger</span>
             </a>
@@ -222,102 +222,6 @@
                                 </div>
                                 <h4 class="text-base font-bold text-gray-900 mb-1">Network is Secure</h4>
                                 <p class="text-xs text-gray-500 font-medium max-w-sm mx-auto">No malicious activity or duplicate vote attempts detected.</p>
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </div>
-
-    <!-- Blockchain Ledger Operations Section -->
-    <div id="blockchain-ledger-section" class="space-y-6 pt-4">
-        <!-- Section Header Card -->
-        <div class="bg-white/80 glass-panel border border-gray-200/70 rounded-2xl p-6 sm:p-8 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-            <div>
-                <div class="inline-flex items-center space-x-2 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 mb-2">
-                    <span class="w-2 h-2 bg-emerald-500 rounded-full animate-pulse mr-1"></span>
-                    <span>Ledger Active</span>
-                </div>
-                <h2 class="text-2xl font-extrabold tracking-tight text-gray-900" id="ledger-heading">Blockchain Ledger Operations</h2>
-                <p class="text-sm text-gray-600 mt-1 max-w-xl">Real-time cryptographic audit of immutable vote blocks, SHA-256 chain links, and mathematical integrity status.</p>
-            </div>
-            
-            <div class="flex flex-wrap sm:flex-nowrap items-center gap-4 w-full md:w-auto">
-                <div class="flex items-center space-x-4 bg-gray-50/80 border border-gray-200/80 p-4 rounded-2xl shadow-inner flex-1 sm:flex-initial">
-                    <div class="w-12 h-12 rounded-full border border-emerald-300 bg-emerald-50 flex items-center justify-center flex-shrink-0">
-                        <span class="text-xl">⛓️</span>
-                    </div>
-                    <div>
-                        <p class="text-[10px] text-gray-500 uppercase tracking-widest font-bold mb-0.5">Recorded Blocks</p>
-                        <p class="text-3xl font-extrabold text-emerald-600" id="ledger-total-blocks">{{ total_blocks }}</p>
-                    </div>
-                </div>
-
-                <div class="flex items-center space-x-3 bg-gray-50/80 border border-gray-200/80 p-4 rounded-2xl shadow-inner flex-1 sm:flex-initial">
-                    <div>
-                        <p class="text-[10px] text-gray-500 uppercase tracking-widest font-bold mb-0.5">Chain Verification</p>
-                        {% if all_chains_valid %}
-                            <div class="flex items-center text-emerald-700 font-bold text-sm" id="ledger-chain-status">
-                                <svg class="w-4 h-4 mr-1 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
-                                <span>Chains Valid</span>
-                            </div>
-                        {% else %}
-                            <div class="flex items-center text-red-700 font-bold text-sm" id="ledger-chain-status">
-                                <svg class="w-4 h-4 mr-1 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-                                <span>Integrity Alert</span>
-                            </div>
-                        {% endif %}
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Live Blocks Table Card -->
-        <div class="bg-white/80 glass-panel border border-gray-200/70 rounded-2xl shadow-sm overflow-hidden">
-            <div class="px-6 py-4 border-b border-gray-200/60 flex items-center justify-between">
-                <h3 class="text-base font-bold text-gray-900 flex items-center gap-2">
-                    <svg class="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
-                    Recent Cryptographic Blocks
-                </h3>
-                <span class="text-xs text-gray-500 font-medium">Linked sequentially via SHA-256 hash chains</span>
-            </div>
-
-            <div class="overflow-x-auto">
-                <table class="w-full text-left border-collapse" id="ledger-blocks-table">
-                    <thead>
-                        <tr class="border-b border-gray-200/60 bg-gray-50/60 text-xs font-bold uppercase tracking-wider text-gray-500">
-                            <th class="px-6 py-3.5">Block #</th>
-                            <th class="px-6 py-3.5">Election</th>
-                            <th class="px-6 py-3.5">Timestamp</th>
-                            <th class="px-6 py-3.5">Linked Previous Hash</th>
-                            <th class="px-6 py-3.5">Generated Block Hash</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-gray-200/60 text-sm">
-                        {% for block in recent_blocks %}
-                        <tr class="hover:bg-emerald-50/20 transition-colors ledger-block-row">
-                            <td class="px-6 py-4 font-mono text-xs font-bold text-gray-900 whitespace-nowrap">
-                                <span class="px-2.5 py-1 rounded-md bg-gray-100 text-gray-800 border border-gray-200">#{{ block.id }}</span>
-                            </td>
-                            <td class="px-6 py-4 font-semibold text-gray-800 whitespace-nowrap">{{ block.election.title }}</td>
-                            <td class="px-6 py-4 font-mono text-xs text-gray-600 whitespace-nowrap">{{ block.voted_at|date:"Y-m-d H:i:s" }}</td>
-                            <td class="px-6 py-4 font-mono text-xs text-gray-500 whitespace-nowrap" title="{{ block.previous_hash }}">
-                                {{ block.previous_hash|slice:":16" }}...
-                            </td>
-                            <td class="px-6 py-4 font-mono text-xs font-semibold text-emerald-700 whitespace-nowrap" title="{{ block.block_hash }}">
-                                {{ block.block_hash|slice:":16" }}...
-                            </td>
-                        </tr>
-                        {% empty %}
-                        <tr id="ledger-empty-row">
-                            <td colspan="5" class="px-6 py-16 text-center">
-                                <div class="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gray-50 border border-gray-200 mb-4 shadow-sm">
-                                    <svg class="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
-                                </div>
-                                <h4 class="text-base font-bold text-gray-900 mb-1">Ledger is Empty</h4>
-                                <p class="text-xs text-gray-500 font-medium max-w-sm mx-auto">No cryptographic blocks have been mined yet. Genesis block will generate upon the first confirmed vote.</p>
                             </td>
                         </tr>
                         {% endfor %}

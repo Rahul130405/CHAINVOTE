@@ -13,6 +13,7 @@ urlpatterns = [
     path('security/threat-dashboard/', views.threat_dashboard, name='threat_dashboard'),
     # ── Admin Management Routes ──────────────────────
     path('manage/', views.manage_dashboard, name='manage_dashboard'),
+    path('manage/ledger/', views.manage_ledger, name='manage_ledger'),
     path('manage/elections/new/', views.manage_election_create, name='manage_election_create'),
     path('manage/elections/<int:election_id>/edit/', views.manage_election_edit, name='manage_election_edit'),
     path('manage/elections/<int:election_id>/delete/', views.manage_election_delete, name='manage_election_delete'),
