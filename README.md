@@ -242,57 +242,6 @@ ChainVote follows a defense-in-depth security model designed to provide high aud
 
 ---
 
-<h2 id="application-screenshots">📸 Application Screenshots</h2>
-
-Below is a preview of the ChainVote interface across administrative and voter-facing flows:
-
-<table>
-  <tr>
-    <td width="50%" align="center">
-      <strong>Voter Landing & Command Center</strong><br />
-      <img src="voting/static/voting/images/logo.webp" alt="ChainVote Emblem" width="160" /><br />
-      <em>Real-time metrics, active elections, and bilingual toggle</em>
-      <!-- SCREENSHOT PLACEHOLDER: Voter Command Center Homepage (/) - Add screenshot here -->
-    </td>
-    <td width="50%" align="center">
-      <strong>Administrative Management Portal</strong><br />
-      <img src="voting/static/voting/images/logo.webp" alt="ChainVote Admin" width="160" /><br />
-      <em>KPI cards, election rosters, and SOC Threat Operations</em>
-      <!-- SCREENSHOT PLACEHOLDER: Admin Dashboard (/manage/) - Add screenshot here -->
-    </td>
-  </tr>
-  <tr>
-    <td width="50%" align="center">
-      <strong>Voting Booth & Ballot Review Modal</strong><br />
-      <img src="voting/static/voting/images/logo.webp" alt="Voting Booth" width="160" /><br />
-      <em>Candidate selection, 10-char voter validation, masked review</em>
-      <!-- SCREENSHOT PLACEHOLDER: Voting Booth & Modal (/election/<id>/) - Add screenshot here -->
-    </td>
-    <td width="50%" align="center">
-      <strong>Cryptographic Vote Receipt Modal</strong><br />
-      <img src="voting/static/voting/images/logo.webp" alt="Vote Receipt" width="160" /><br />
-      <em>64-character SHA-256 block transaction hash</em>
-      <!-- SCREENSHOT PLACEHOLDER: Vote Receipt Modal - Add screenshot here -->
-    </td>
-  </tr>
-  <tr>
-    <td width="50%" align="center">
-      <strong>Concluded Election Results</strong><br />
-      <img src="voting/static/voting/images/logo.webp" alt="Election Results" width="160" /><br />
-      <em>Decrypted tallies, winner badge, and ledger status</em>
-      <!-- SCREENSHOT PLACEHOLDER: Concluded Results (/election/<id>/results/) - Add screenshot here -->
-    </td>
-    <td width="50%" align="center">
-      <strong>Public Blockchain Explorer</strong><br />
-      <img src="voting/static/voting/images/logo.webp" alt="Blockchain Explorer" width="160" /><br />
-      <em>Block height, previous block hashes, and timestamps</em>
-      <!-- SCREENSHOT PLACEHOLDER: Blockchain Explorer (/election/<id>/blockchain/) - Add screenshot here -->
-    </td>
-  </tr>
-</table>
-
----
-
 <h2 id="installation-and-local-setup">⚡ Installation and Local Setup</h2>
 
 Follow these steps to set up and run ChainVote locally on your development machine.
