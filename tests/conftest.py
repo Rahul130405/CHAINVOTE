@@ -18,6 +18,22 @@ from datetime import timedelta
 import pytest
 
 os.environ.setdefault("SE_OFFLINE", "true")
+from pathlib import Path
+from django.conf import settings
+from django.contrib.staticfiles import views as _staticfiles_views
+from django.views.static import serve as _default_static_serve
+
+# Enable live_server in Selenium tests to resolve post-processed hashed files from STATIC_ROOT
+_orig_staticfiles_serve = _staticfiles_views.serve
+
+def _test_staticfiles_serve(request, path, insecure=False, **kwargs):
+    normalized = path.replace("\\", "/").lstrip("/")
+    static_root_file = Path(settings.STATIC_ROOT) / normalized
+    if static_root_file.exists() and static_root_file.is_file():
+        return _default_static_serve(request, normalized, document_root=str(settings.STATIC_ROOT))
+    return _orig_staticfiles_serve(request, path, insecure=insecure, **kwargs)
+
+_staticfiles_views.serve = _test_staticfiles_serve
 from django.contrib.auth.models import User
 from django.core.cache import cache
 from django.utils import timezone

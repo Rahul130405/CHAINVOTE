@@ -47,6 +47,13 @@ def election_has_recorded_votes_or_ledger(election):
     if not election or not getattr(election, 'id', None):
         return False
     try:
+        # Fast path: Reuse prefetched votes or annotated count if already loaded in memory
+        if hasattr(election, '_prefetched_objects_cache') and 'votes' in election._prefetched_objects_cache:
+            return len(election.votes.all()) > 0
+        if getattr(election, 'annotated_vote_count', None) is not None:
+            return election.annotated_vote_count > 0
+        if getattr(election, 'vote_count', None) is not None:
+            return election.vote_count > 0
         return Vote.objects.filter(election_id=election.id).exists()
     except Exception as exc:
         logger.warning(

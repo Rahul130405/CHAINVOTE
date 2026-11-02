@@ -1,0 +1,73 @@
+/* ── ChainVote Bilingual & Devanagari Typography Styles ──────── */
+
+/* Font Family Application */
+html[lang="hi"],
+html[lang="hi"] body,
+.lang-hi {
+    font-family: 'Noto Sans Devanagari', 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+}
+
+/* Headings in Hindi: Ensure normal letter-spacing and vertical clearance */
+html[lang="hi"] h1,
+html[lang="hi"] h2,
+html[lang="hi"] h3,
+html[lang="hi"] h4,
+html[lang="hi"] h5,
+html[lang="hi"] h6,
+html[lang="hi"] .hero-heading {
+    letter-spacing: normal !important;
+    line-height: 1.35 !important;
+    text-rendering: optimizeLegibility;
+}
+
+/* Hero Heading: Fix top clipping and matra overlap */
+.hero-heading {
+    display: inline-block;
+    overflow: visible !important;
+    padding-top: 0.35rem;
+    padding-bottom: 0.35rem;
+}
+
+html[lang="hi"] .hero-heading {
+    font-family: 'Noto Sans Devanagari', 'Inter', sans-serif !important;
+    letter-spacing: normal !important;
+    line-height: 1.38 !important;
+    padding-top: 0.5rem !important;
+    padding-bottom: 0.5rem !important;
+    overflow: visible !important;
+    word-break: keep-all;
+}
+
+/* Fix for background-clip: text clipping in WebKit browsers */
+html[lang="hi"] .bg-clip-text {
+    -webkit-box-decoration-break: clone;
+    box-decoration-break: clone;
+    padding-top: 0.25rem !important;
+    padding-bottom: 0.25rem !important;
+}
+
+/* Body text, paragraphs, labels, buttons in Hindi */
+html[lang="hi"] p,
+html[lang="hi"] span,
+html[lang="hi"] label,
+html[lang="hi"] a,
+html[lang="hi"] button,
+html[lang="hi"] input,
+html[lang="hi"] th,
+html[lang="hi"] td {
+    line-height: 1.55;
+    letter-spacing: normal;
+}
+
+/* Badges and buttons alignment in Hindi */
+html[lang="hi"] .btn,
+html[lang="hi"] button,
+html[lang="hi"] .badge,
+html[lang="hi"] [class*="rounded-full"] {
+    line-height: 1.4;
+}
+
+/* Card padding and row heights to prevent horizontal/vertical squishing */
+html[lang="hi"] .glass-panel {
+    overflow: visible;
+}

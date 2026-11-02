@@ -1,0 +1,28 @@
+{
+  "name": "chainvote",
+  "version": "1.0.0",
+  "description": "*The next generation of digital democracy, powered by cryptographic ledgers.*",
+  "main": "index.js",
+  "directories": {
+    "test": "tests"
+  },
+  "scripts": {
+    "build:css": "tailwindcss -i ./voting/static/voting/css/tailwind_input.css -o ./voting/static/voting/css/tailwind.min.css --minify",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Rahul130405/CHAINVOTE.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/Rahul130405/CHAINVOTE/issues"
+  },
+  "homepage": "https://github.com/Rahul130405/CHAINVOTE#readme",
+  "devDependencies": {
+    "tailwindcss": "^3.4.19"
+  }
+}

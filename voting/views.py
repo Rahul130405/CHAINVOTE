@@ -11,7 +11,7 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 from rest_framework import status
 
-from django.db.models import Count, ProtectedError
+from django.db.models import Count, ProtectedError, Prefetch
 from django.db import transaction, IntegrityError, DatabaseError
 from django.core.cache import cache
 
@@ -244,13 +244,18 @@ def results_view(request, election_id):
             'message': f"🚨 SECURITY ALERT: {bc_message} Results cannot be verified."
         })
 
-    vote_count = {}
-    for vote in votes:
-        try:
-            candidate_id = decrypt_vote(vote.encrypted_vote)
-            vote_count[int(candidate_id)] = vote_count.get(int(candidate_id), 0) + 1
-        except Exception:
-            pass # Skip corrupted decryption
+    # Cache decrypted tally for ended elections (keyed with vote count for safety)
+    tally_cache_key = f'election_tally_{election_id}_{len(votes)}'
+    vote_count = cache.get(tally_cache_key)
+    if vote_count is None:
+        vote_count = {}
+        for vote in votes:
+            try:
+                candidate_id = decrypt_vote(vote.encrypted_vote)
+                vote_count[int(candidate_id)] = vote_count.get(int(candidate_id), 0) + 1
+            except Exception:
+                pass # Skip corrupted decryption
+        cache.set(tally_cache_key, vote_count, timeout=300)
 
     candidates = list(election.candidates.all())
     for c in candidates:
@@ -545,13 +550,18 @@ def api_results(request, election_id):
             "details": bc_message
         }, status=status.HTTP_409_CONFLICT)
 
-    vote_count = {}
-    for vote in votes:
-        try:
-            candidate_id = decrypt_vote(vote.encrypted_vote)
-            vote_count[int(candidate_id)] = vote_count.get(int(candidate_id), 0) + 1
-        except Exception:
-            pass
+    # Cache decrypted tally for ended elections
+    tally_cache_key = f'election_tally_{election_id}_{len(votes)}'
+    vote_count = cache.get(tally_cache_key)
+    if vote_count is None:
+        vote_count = {}
+        for vote in votes:
+            try:
+                candidate_id = decrypt_vote(vote.encrypted_vote)
+                vote_count[int(candidate_id)] = vote_count.get(int(candidate_id), 0) + 1
+            except Exception:
+                pass
+        cache.set(tally_cache_key, vote_count, timeout=300)
 
     results = []
     for c in election.candidates.all():
@@ -631,10 +641,20 @@ def api_cron_add_candidate(request):
 
 @admin_required
 def manage_dashboard(request):
-    """Admin dashboard listing all elections and metrics."""
-    elections = list(Election.objects.prefetch_related('candidates').all().order_by('-start_time'))
+    """Admin dashboard listing all elections and metrics (Optimized: eliminated N+1 database round trips)."""
+    # 1. Single database fetch with annotated vote count and prefetched candidates and votes in dependency order
+    elections = list(
+        Election.objects
+        .annotate(annotated_vote_count=Count('votes'))
+        .prefetch_related(
+            'candidates',
+            Prefetch('votes', queryset=Vote.objects.order_by('id').only('id', 'election_id', 'previous_hash', 'block_hash', 'encrypted_vote', 'voter_hash'))
+        )
+        .all()
+        .order_by('-start_time')
+    )
 
-    # Compute counts and attached vote numbers
+    # Compute counts and attached vote numbers in memory without extra queries
     total_elections = len(elections)
     active_elections = 0
     completed_elections = 0
@@ -643,18 +663,28 @@ def manage_dashboard(request):
     all_chains_valid = True
 
     for e in elections:
-        e.vote_count = Vote.objects.filter(election=e).count()
-        total_candidates += e.candidates.count()
+        # Use annotated vote count (0 extra queries)
+        e.vote_count = getattr(e, 'annotated_vote_count', 0)
+
+        # Use in-memory prefetched candidates cache (0 extra queries)
+        cand_count = len(e.candidates.all())
+        e.candidate_count = cand_count
+        total_candidates += cand_count
+
         if e.status == 'active':
             active_elections += 1
         elif e.status == 'ended':
             completed_elections += 1
 
-        is_valid, msg = verify_election_blockchain(e)
+        # Blockchain verification using prefetched votes list (0 extra queries)
+        election_votes = list(e.votes.all())
+        is_valid, msg = verify_election_blockchain(e, votes=election_votes)
         e.chain_valid = is_valid
         e.chain_message = msg
         if not is_valid:
             all_chains_valid = False
+
+        # Deletion blocking reason check reusing prefetched votes/annotated counts (0 extra queries)
         e.blocking_reason = get_election_deletion_blocking_reason(e)
         e.can_be_deleted = (e.blocking_reason is None)
 
@@ -918,7 +948,7 @@ def manage_candidate_create(request, election_id):
 @admin_required
 def manage_candidate_edit(request, candidate_id):
     """Admin view to edit candidate information."""
-    candidate = get_object_or_404(Candidate, id=candidate_id)
+    candidate = get_object_or_404(Candidate.objects.select_related('election'), id=candidate_id)
     election = candidate.election
     if request.method == 'POST':
         form = CandidateForm(request.POST, instance=candidate, election=election)
@@ -946,7 +976,7 @@ def manage_candidate_delete(request, candidate_id):
     2. NO votes have been cast for that candidate (verified fail-closed).
     Server-side blocked if votes exist on the blockchain ledger or election is active/ended.
     """
-    candidate = get_object_or_404(Candidate, id=candidate_id)
+    candidate = get_object_or_404(Candidate.objects.select_related('election'), id=candidate_id)
     election_id = candidate.election_id
 
     # 1. Pre-flight user feedback check (actual enforcement is inside the POST transaction under lock)
